@@ -3,8 +3,7 @@ import logging
 import time
 import re
 from datetime import datetime
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 from extensions import db
 from models import Article, ProcessingLog
 from config import AI_CONFIG, UNIVERSAL_PROMPT
@@ -27,16 +26,23 @@ class AIProcessor:
             AIProcessor._initialized = True
 
     def _init_clients(self):
-        """Initialize Gemini clients for each AI"""
+        """Initialize Gemini models for each AI configuration."""
         for ai_type, api_keys in AI_CONFIG.items():
             self.clients[ai_type] = []
-            for i, api_key in enumerate(filter(None, api_keys)): # filter(None, ...) removes empty keys
+            for i, api_key in enumerate(filter(None, api_keys)):  # filter(None, ...) removes empty keys
                 try:
-                    client = genai.Client(api_key=api_key)
-                    self.clients[ai_type].append(client)
-                    logger.info(f"Initialized {ai_type} AI client #{i+1}")
+                    # Use the modern GenerativeModel API
+                    model = genai.GenerativeModel(
+                        model_name="gemini-1.5-flash",  # Using a current and efficient model
+                        generation_config=genai.GenerationConfig(
+                            response_mime_type="application/json"
+                        ),
+                        client_options={"api_key": api_key}
+                    )
+                    self.clients[ai_type].append(model)
+                    logger.info(f"Initialized {ai_type} AI model #{i+1}")
                 except Exception as e:
-                    logger.error(f"Failed to initialize {ai_type} AI client #{i+1}: {str(e)}")
+                    logger.error(f"Failed to initialize {ai_type} AI model #{i+1}: {str(e)}")
             if not self.clients[ai_type]:
                 logger.warning(f"No valid API keys found or initialized for AI type: {ai_type}")
 
@@ -96,38 +102,32 @@ class AIProcessor:
             logger.error(f"No AI clients configured for type: {ai_type}")
             return None
 
-        for i, client in enumerate(self.clients[ai_type]):
-            ai_name = f"{ai_type}_client_#{i+1}"
-            logger.info(f"Attempting to process with {ai_name}")
-            result = self._call_ai(client, article, ai_name)
+        for i, model in enumerate(self.clients[ai_type]):
+            ai_name = f"{ai_type}_model_#{i+1}"
+            logger.info(f"Attempting to process article {article.id} with {ai_name}")
+            result = self._call_ai(model, article, ai_name)
             if result:
                 article.ai_used = ai_name
                 return result
-            logger.warning(f"AI call failed with {ai_name}. Trying next client if available.")
+            logger.warning(f"AI call failed with {ai_name}. Trying next model if available.")
 
         logger.error(f"All AI clients for type {ai_type} failed to process article {article.id}")
         return None
 
-    def _call_ai(self, client, article, ai_name):
+    def _call_ai(self, model, article, ai_name):
         """Make actual AI call with error handling"""
         try:
             prompt = UNIVERSAL_PROMPT.format(
                 titulo=article.original_title,
                 conteudo=article.original_content
             )
-
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
-                )
-            )
+            
+            # Use the new API to generate content
+            response = model.generate_content(prompt)
 
             if response.text:
                 try:
                     result = json.loads(response.text)
-                    # Validate required fields
                     required_fields = ['titulo_final', 'conteudo_final', 'meta_description', 
                                      'focus_keyword', 'categoria', 'obra_principal', 'tags']
 
