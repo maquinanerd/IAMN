@@ -150,10 +150,12 @@ class WordPressPublisher:
         categories = [WORDPRESS_CATEGORIES['Notícias']]  # Default category
 
         # Add specific category based on feed type
-        if article.feed_type == 'movies':
+        if article.feed_type.startswith('movies'):
             categories.append(WORDPRESS_CATEGORIES['Filmes'])
-        elif article.feed_type == 'tv-shows':
+        elif article.feed_type.startswith('series'):
             categories.append(WORDPRESS_CATEGORIES['Séries'])
+        elif article.feed_type.startswith('games'):
+            categories.append(WORDPRESS_CATEGORIES['Games'])
 
         # Add article's specific category if different
         if article.categoria in WORDPRESS_CATEGORIES:

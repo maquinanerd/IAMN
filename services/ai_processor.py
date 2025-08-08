@@ -91,25 +91,21 @@ class AIProcessor:
         return processed_count
 
     def _process_with_ai(self, article, ai_type):
-        """Process article with specified AI type, with fallback to backup"""
-        # Try primary AI first
-        client_key = f"{ai_type}_primary"
-        if client_key in self.clients:
-            result = self._call_ai(self.clients[client_key], article, f"{ai_type}_primary")
-            if result:
-                article.ai_used = f"{ai_type}_primary"
-                return result
+        """Process article with specified AI type, iterating through available clients on failure."""
+        if ai_type not in self.clients or not self.clients[ai_type]:
+            logger.error(f"No AI clients configured for type: {ai_type}")
+            return None
 
-        # Fallback to backup AI
-        client_key = f"{ai_type}_backup"
-        if client_key in self.clients:
-            logger.warning(f"Primary {ai_type} AI failed, trying backup")
-            result = self._call_ai(self.clients[client_key], article, f"{ai_type}_backup")
+        for i, client in enumerate(self.clients[ai_type]):
+            ai_name = f"{ai_type}_client_#{i+1}"
+            logger.info(f"Attempting to process with {ai_name}")
+            result = self._call_ai(client, article, ai_name)
             if result:
-                article.ai_used = f"{ai_type}_backup"
+                article.ai_used = ai_name
                 return result
+            logger.warning(f"AI call failed with {ai_name}. Trying next client if available.")
 
-        logger.error(f"Both primary and backup {ai_type} AIs failed")
+        logger.error(f"All AI clients for type {ai_type} failed to process article {article.id}")
         return None
 
     def _call_ai(self, client, article, ai_name):
@@ -197,10 +193,9 @@ class AIProcessor:
     def get_ai_status(self):
         """Get status of all AIs"""
         status = {}
-        for ai_type in ['cinema', 'series']:
+        for ai_type in AI_CONFIG.keys():
             status[ai_type] = {
-                'primary_available': f"{ai_type}_primary" in self.clients,
-                'backup_available': f"{ai_type}_backup" in self.clients,
+                'available_keys': len(self.clients.get(ai_type, [])),
                 'last_used': self._get_last_used_time(ai_type)
             }
         return status
