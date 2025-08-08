@@ -4,6 +4,10 @@ import time
 import re
 from datetime import datetime
 import google.generativeai as genai
+# Adicionado para permitir a criação de clientes de IA com chaves de API específicas
+from google.ai.generativelanguage_v1beta.services.generative_service import \
+    GenerativeServiceClient
+from google.api_core import client_options as client_options_lib
 from extensions import db
 from models import Article, ProcessingLog
 from config import AI_CONFIG, UNIVERSAL_PROMPT
@@ -31,13 +35,18 @@ class AIProcessor:
             self.clients[ai_type] = []
             for i, api_key in enumerate(filter(None, api_keys)):  # filter(None, ...) removes empty keys
                 try:
-                    # Use the modern GenerativeModel API
+                    # Para usar uma chave de API específica por instância do modelo (e ser seguro para threads),
+                    # devemos criar um cliente de baixo nível e passá-lo para o GenerativeModel.
+                    # O argumento 'client_options' que estava aqui não é válido para esta função.
+                    client_opts = client_options_lib.ClientOptions(api_key=api_key)
+                    generative_client = GenerativeServiceClient(client_options=client_opts)
+
                     model = genai.GenerativeModel(
                         model_name="gemini-1.5-flash",  # Using a current and efficient model
                         generation_config=genai.GenerationConfig(
                             response_mime_type="application/json"
                         ),
-                        client_options={"api_key": api_key}
+                        client=generative_client
                     )
                     self.clients[ai_type].append(model)
                     logger.info(f"Initialized {ai_type} AI model #{i+1}")
