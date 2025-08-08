@@ -4,10 +4,12 @@ import time
 import re
 from datetime import datetime
 import google.generativeai as genai
-# Adicionado para permitir a criação de clientes de IA com chaves de API específicas
+# Usaremos o cliente de serviço de baixo nível para gerenciar chaves de API individuais
 from google.ai.generativelanguage_v1beta.services.generative_service import \
     GenerativeServiceClient
 from google.api_core import client_options as client_options_lib
+# Tipos necessários para construir a requisição de baixo nível
+from google.ai.generativelanguage_v1beta.types import (Content, Part, GenerationConfig, GenerateContentRequest)
 from extensions import db
 from models import Article, ProcessingLog
 from config import AI_CONFIG, UNIVERSAL_PROMPT
@@ -35,20 +37,12 @@ class AIProcessor:
             self.clients[ai_type] = []
             for i, api_key in enumerate(filter(None, api_keys)):  # filter(None, ...) removes empty keys
                 try:
-                    # Para usar uma chave de API específica por instância do modelo (e ser seguro para threads),
-                    # devemos criar um cliente de baixo nível e passá-lo para o GenerativeModel.
-                    # O argumento 'client_options' que estava aqui não é válido para esta função.
+                    # Cria um cliente de serviço com sua própria chave de API.
+                    # Esta é a abordagem correta para gerenciar múltiplas chaves de forma isolada.
                     client_opts = client_options_lib.ClientOptions(api_key=api_key)
-                    generative_client = GenerativeServiceClient(client_options=client_opts)
+                    service_client = GenerativeServiceClient(client_options=client_opts)
 
-                    model = genai.GenerativeModel(
-                        model_name="gemini-1.5-flash",  # Using a current and efficient model
-                        generation_config=genai.GenerationConfig(
-                            response_mime_type="application/json"
-                        ),
-                        client=generative_client
-                    )
-                    self.clients[ai_type].append(model)
+                    self.clients[ai_type].append(service_client)
                     logger.info(f"Initialized {ai_type} AI model #{i+1}")
                 except Exception as e:
                     logger.error(f"Failed to initialize {ai_type} AI model #{i+1}: {str(e)}")
@@ -111,10 +105,10 @@ class AIProcessor:
             logger.error(f"No AI clients configured for type: {ai_type}")
             return None
 
-        for i, model in enumerate(self.clients[ai_type]):
+        for i, client in enumerate(self.clients[ai_type]):
             ai_name = f"{ai_type}_model_#{i+1}"
             logger.info(f"Attempting to process article {article.id} with {ai_name}")
-            result = self._call_ai(model, article, ai_name)
+            result = self._call_ai(client, article, ai_name)
             if result:
                 article.ai_used = ai_name
                 return result
@@ -123,23 +117,31 @@ class AIProcessor:
         logger.error(f"All AI clients for type {ai_type} failed to process article {article.id}")
         return None
 
-    def _call_ai(self, model, article, ai_name):
-        """Make actual AI call with error handling"""
+    def _call_ai(self, client: GenerativeServiceClient, article, ai_name):
+        """Make actual AI call using the low-level GenerativeServiceClient."""
         try:
             prompt = UNIVERSAL_PROMPT.format(
                 titulo=article.original_title,
                 conteudo=article.original_content
             )
-            
-            # Use the new API to generate content
-            response = model.generate_content(prompt)
 
-            if response.text:
+            # Construir a requisição para o GenerativeServiceClient
+            request = GenerateContentRequest(
+                model="models/gemini-1.5-flash",  # O nome completo do modelo é necessário aqui
+                contents=[Content(parts=[Part(text=prompt)])],
+                generation_config=GenerationConfig(
+                    response_mime_type="application/json"
+                )
+            )
+
+            response = client.generate_content(request=request)
+
+            if response.candidates and response.candidates[0].content.parts:
+                response_text = response.candidates[0].content.parts[0].text
                 try:
-                    result = json.loads(response.text)
+                    result = json.loads(response_text)
                     required_fields = ['titulo_final', 'conteudo_final', 'meta_description', 
                                      'focus_keyword', 'categoria', 'obra_principal', 'tags']
-
                     if all(field in result for field in required_fields):
                         return result
                     else:
@@ -147,7 +149,7 @@ class AIProcessor:
                         return None
 
                 except json.JSONDecodeError as e:
-                    logger.error(f"Invalid JSON response from {ai_name}: {str(e)}")
+                    logger.error(f"Invalid JSON response from {ai_name}: {str(e)}. Response text: {response_text[:200]}")
                     return None
             else:
                 logger.error(f"Empty response from {ai_name}")
