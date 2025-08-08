@@ -20,6 +20,13 @@ db = SQLAlchemy(model_class=Base)
 
 # Create the app
 app = Flask(__name__)
+
+# Garante que a pasta de instância (instance folder) exista
+try:
+    os.makedirs(app.instance_path)
+except OSError:
+    pass
+
 app.secret_key = os.environ.get("SESSION_SECRET", "content-automation-secret-key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
