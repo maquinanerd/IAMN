@@ -158,21 +158,6 @@ setInterval(() => {
     }
 }, 1000);
 
-// Update next run time every 30 seconds via API
-setInterval(() => {
-    fetch('/api/scheduler-status')
-        .then(response => response.json())
-        .then(data => {
-            if (data.jobs && data.jobs.length > 0) {
-                const automationJob = data.jobs.find(job => job.id === 'automation_cycle');
-                if (automationJob && automationJob.next_run) {
-                    nextRunTime = automationJob.next_run;
-                }
-            }
-        })
-        .catch(error => console.error('Error updating next run time:', error));
-}, 30000);
-
 function updateAIStatus(data) {
     // Update AI status indicators
     console.log('AI Status updated:', data);

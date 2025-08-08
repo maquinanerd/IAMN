@@ -2,6 +2,7 @@ import os
 import logging
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+# Adicionado para carregar o arquivo .env
 from dotenv import load_dotenv
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -11,6 +12,9 @@ logging.basicConfig(level=logging.DEBUG)
 
 class Base(DeclarativeBase):
     pass
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
 
 db = SQLAlchemy(model_class=Base)
 

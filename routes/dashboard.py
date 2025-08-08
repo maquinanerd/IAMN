@@ -7,6 +7,21 @@ from datetime import datetime, timedelta
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
+# Otimização: Instancia os serviços uma vez para serem reutilizados.
+# Isso assume que eles são thread-safe, o que é comum para clientes de API.
+try:
+    ai_processor = AIProcessor()
+except Exception as e:
+    ai_processor = None
+    print(f"Falha ao inicializar AIProcessor: {e}")
+
+try:
+    wp_publisher = WordPressPublisher()
+except Exception as e:
+    wp_publisher = None
+    print(f"Falha ao inicializar WordPressPublisher: {e}")
+
+
 @dashboard_bp.route('/')
 def dashboard():
     """Main dashboard view"""
@@ -34,18 +49,20 @@ def dashboard():
     scheduler_status = scheduler.get_status() if scheduler else {'running': False}
 
     # AI status
-    try:
-        ai_processor = AIProcessor()
-        ai_status = ai_processor.get_ai_status()
-    except Exception:
-        ai_status = {}
+    ai_status = {}
+    if ai_processor:
+        try:
+            ai_status = ai_processor.get_ai_status()
+        except Exception:
+            ai_status = {'error': 'Não foi possível obter o status da IA.'}
 
     # WordPress status
-    try:
-        wp_publisher = WordPressPublisher()
-        wordpress_connected = wp_publisher.test_connection()
-    except Exception:
-        wordpress_connected = False
+    wordpress_connected = False
+    if wp_publisher:
+        try:
+            wordpress_connected = wp_publisher.test_connection()
+        except Exception:
+            wordpress_connected = False
 
     return render_template('dashboard.html',
                          total_articles=total_articles,
