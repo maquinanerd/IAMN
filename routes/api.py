@@ -4,7 +4,7 @@ from services.scheduler import get_scheduler
 from services.wordpress_publisher import WordPressPublisher
 from services.ai_processor import AIProcessor
 from models import Article, ProcessingLog
-from app import db
+from extensions import db
 import logging
 from datetime import datetime
 

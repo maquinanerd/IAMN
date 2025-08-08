@@ -185,7 +185,7 @@ class AIProcessor:
         return '\n\n'.join(paragraphs)
 
     def _log_processing(self, article_id, action, message, ai_used, success):
-        """Log processing actions"""
+        """Log processing actions. Adds the log to the session but does not commit."""
         try:
             log = ProcessingLog(
                 article_id=article_id,
@@ -195,9 +195,8 @@ class AIProcessor:
                 success=success
             )
             db.session.add(log)
-            db.session.commit()
         except Exception as e:
-            logger.error(f"Error logging processing action: {str(e)}")
+            logger.error(f"Error creating processing log object for article {article_id}: {str(e)}")
 
     def get_ai_status(self):
         """Get status of all AIs"""
