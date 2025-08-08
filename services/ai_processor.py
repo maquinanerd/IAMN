@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from google import genai
 from google.genai import types
-from app import db
+from extensions import db
 from models import Article, ProcessingLog
 from config import AI_CONFIG, UNIVERSAL_PROMPT
 

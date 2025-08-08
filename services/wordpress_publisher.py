@@ -2,7 +2,7 @@ import json
 import logging
 import requests
 from datetime import datetime
-from app import db
+from extensions import db
 from models import Article, ProcessingLog
 from config import WORDPRESS_CONFIG, WORDPRESS_CATEGORIES
 

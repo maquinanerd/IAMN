@@ -3,7 +3,7 @@ import requests
 import trafilatura
 import logging
 from datetime import datetime, timedelta
-from app import db
+from extensions import db
 from models import Article
 from config import RSS_FEEDS, USER_AGENT
 from bs4 import BeautifulSoup
