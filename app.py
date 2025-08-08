@@ -2,71 +2,49 @@ import os
 import logging
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from dotenv import load_dotenv
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
-from dotenv import load_dotenv
 
-# Configuração do log
+# Configure logging
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
-load_dotenv()
-
-# Definição da classe Base para mapeamento de modelos
 class Base(DeclarativeBase):
     pass
 
-# Inicialização do banco de dados
 db = SQLAlchemy(model_class=Base)
 
-# Criação da aplicação Flask
+# Create the app
 app = Flask(__name__)
-
-# Definindo a chave secreta para a sessão (em produção, altere para um valor seguro)
-app.secret_key = os.getenv("SESSION_SECRET", "your-secret-key-change-in-production")
-
-# Aplicando middleware para lidar com proxies reversos (para servidores em produção)
+app.secret_key = os.environ.get("SESSION_SECRET", "content-automation-secret-key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Configuração do banco de dados (substituindo com as credenciais fornecidas)
-db_url = os.environ.get("DATABASE_URL")
-if not db_url or "user:password@host:port" in db_url:
-    error_msg = "FATAL: DATABASE_URL não está configurada. Verifique seu arquivo .env e substitua os valores de exemplo."
-    logger.error(error_msg)
-    raise ValueError(error_msg)
-
-app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+# Configure the database
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_recycle": 300,  # Tempo para reciclar conexões inativas
-    "pool_pre_ping": True,  # Verifica a conexão antes de usar
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
 }
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # Desabilita notificações de modificações de objetos
 
-# Inicializa a extensão do banco de dados com a aplicação Flask
+# Initialize the app with the extension
 db.init_app(app)
 
-# Importando os blueprints das rotas
+with app.app_context():
+    # Import models to ensure tables are created
+    import models
+    db.create_all()
+
+# Import and register routes
 from routes.dashboard import dashboard_bp
 from routes.api import api_bp
 
-# Registrando os blueprints na aplicação Flask
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(api_bp, url_prefix='/api')
 
-# Contexto de aplicação para criar as tabelas no banco
-with app.app_context():
-    # Importando os modelos para criação das tabelas
-    import models
-    db.create_all()  # Cria todas as tabelas definidas nos modelos
+# Initialize and start the scheduler
+from services.scheduler import init_scheduler
+init_scheduler()
 
-    # Inicializando o agendador de tarefas (como o Celery ou similar)
-    from services.scheduler import init_scheduler
-    init_scheduler()
-
-    # Log de sucesso na inicialização
-    logger.info("Content Automation System initialized successfully")
-
-# Bloco para executar o servidor de desenvolvimento
+# Adicionado para permitir a execução direta para desenvolvimento
 if __name__ == '__main__':
-    logger.info("Starting Flask development server...")
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
