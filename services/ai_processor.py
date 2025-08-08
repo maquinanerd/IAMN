@@ -28,20 +28,17 @@ class AIProcessor:
 
     def _init_clients(self):
         """Initialize Gemini clients for each AI"""
-        for ai_type, config in AI_CONFIG.items():
-            if config['primary']:
+        for ai_type, api_keys in AI_CONFIG.items():
+            self.clients[ai_type] = []
+            for i, api_key in enumerate(filter(None, api_keys)): # filter(None, ...) removes empty keys
                 try:
-                    self.clients[f"{ai_type}_primary"] = genai.Client(api_key=config['primary'])
-                    logger.info(f"Initialized {ai_type} primary AI")
+                    client = genai.Client(api_key=api_key)
+                    self.clients[ai_type].append(client)
+                    logger.info(f"Initialized {ai_type} AI client #{i+1}")
                 except Exception as e:
-                    logger.error(f"Failed to initialize {ai_type} primary AI: {str(e)}")
-
-            if config['backup']:
-                try:
-                    self.clients[f"{ai_type}_backup"] = genai.Client(api_key=config['backup'])
-                    logger.info(f"Initialized {ai_type} backup AI")
-                except Exception as e:
-                    logger.error(f"Failed to initialize {ai_type} backup AI: {str(e)}")
+                    logger.error(f"Failed to initialize {ai_type} AI client #{i+1}: {str(e)}")
+            if not self.clients[ai_type]:
+                logger.warning(f"No valid API keys found or initialized for AI type: {ai_type}")
 
     def process_pending_articles(self, max_articles=3):
         """Process pending articles using appropriate AI"""
@@ -54,8 +51,8 @@ class AIProcessor:
                 article.status = 'processing'
                 db.session.commit()
 
-                # Determine which AI to use based on feed type
-                ai_type = 'cinema' if article.feed_type == 'movies' else 'series'
+                # Determine which AI to use based on feed type (e.g., 'movies_screenrant' -> 'movies')
+                ai_type = article.feed_type.split('_')[0]
 
                 result = self._process_with_ai(article, ai_type)
 

@@ -2,30 +2,46 @@ import os
 
 # RSS Feeds Configuration
 RSS_FEEDS = {
-    'movies': 'https://comicbook.com/category/movies/feed/',
-    'tv-shows': 'https://comicbook.com/category/tv-shows/feed/'
+    # Movies Feeds
+    'movies_screenrant': 'https://screenrant.com/feed/movie-news/',
+    'movies_movieweb': 'https://movieweb.com/movie-news/',
+    'movies_collider': 'https://collider.com/movie-news/',
+    'movies_cbr': 'https://www.cbr.com/category/movies/news-movies/',
+    # TV Shows Feeds
+    'series_screenrant': 'https://screenrant.com/feed/tv-news/',
+    'series_movieweb': 'https://movieweb.com/feed/tv-news/',
+    'series_collider': 'https://collider.com/feed/category/tv-news/',
+    'series_cbr': 'https://www.cbr.com/feed/category/tv/news-tv/',
+    # Games Feeds
+    'games_gamerant': 'https://gamerant.com/feed/gaming/',
+    'games_thegamer': 'https://www.thegamer.com/feed/category/game-news/',
 }
 
 # User Agent for requests
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 
-# AI Configuration with multiple keys for fallback
+# AI Configuration with multiple keys for redundancy
 AI_CONFIG = {
-    'cinema': {
-        'primary': os.getenv('GEMINI_API_KEY_MOVIE', ''),
-        'backup': os.getenv('GEMINI_API_KEY_MOVIE_BACKUP', '')
-    },
-    'series': {
-        'primary': os.getenv('GEMINI_API_KEY_TV', ''),
-        'backup': os.getenv('GEMINI_API_KEY_TV_BACKUP', '')
-    }
+    'movies': [
+        os.getenv('GEMINI_MOVIES_1'),
+        os.getenv('GEMINI_MOVIES_2'),
+        os.getenv('GEMINI_MOVIES_3'),
+    ],
+    'series': [
+        os.getenv('GEMINI_SERIES_1'),
+        os.getenv('GEMINI_SERIES_2'),
+        os.getenv('GEMINI_SERIES_3'),
+    ],
+    'games': [
+        os.getenv('GEMINI_GAMES_1'),
+    ],
 }
 
 # WordPress Configuration
 WORDPRESS_CONFIG = {
-    'url': os.getenv('WORDPRESS_URL', 'https://www.maquinanerd.com.br/wp-json/wp/v2/'),
-    'user': os.getenv('WORDPRESS_USER', 'Eduardo'),
-    'password': os.getenv('WORDPRESS_PASSWORD', 'QhDY Ch9y kTsX fyhU 9iR2 CAVp')
+    'url': os.getenv('WORDPRESS_URL'),
+    'user': os.getenv('WORDPRESS_USER'),
+    'password': os.getenv('WORDPRESS_PASSWORD')
 }
 
 # WordPress Categories
@@ -33,9 +49,7 @@ WORDPRESS_CATEGORIES = {
     'Notícias': 20,
     'Filmes': 24,
     'Séries': 21,
-    'Cinema': 78,
-    'DC Comics': 23,
-    'Entretenimento': 74
+    'Games': 73,
 }
 
 # Schedule Configuration
