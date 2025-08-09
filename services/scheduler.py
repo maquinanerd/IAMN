@@ -3,13 +3,14 @@ import os
 import json
 from apscheduler.schedulers.background import BackgroundScheduler
 from pytz import timezone
+from urllib.parse import urlparse
 from services.rss_monitor import RSSMonitor
 from services.ai_processor import AIProcessor
 from services.wordpress_publisher import WordPressPublisher
 from services.content_extractor import ContentExtractor
 from services.schema_generator import SchemaGenerator
 from dto import PublishedArticleDTO, FeaturedImageDTO
-from config import SCHEDULE_CONFIG, PIPELINE_CONFIG, UNIVERSAL_PROMPT
+from config import SCHEDULE_CONFIG, PIPELINE_CONFIG, UNIVERSAL_PROMPT, WORDPRESS_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -88,16 +89,17 @@ class ContentAutomationScheduler:
             self.is_running = False
             logger.info("Content automation scheduler stopped")
 
-    def automation_cycle(self):
-        """Main automation cycle"""
+    def automation_cycle(self, limit: int = None):
+        """
+        Main automation cycle. Fetches, processes, and prepares articles for publishing.
+        An optional limit can be provided to override the default number of articles per run.
+        """
         with self.app.app_context():
             try:
                 logger.info("=== Starting automation cycle ===")
-
-                # Step 1: Fetch new article URLs from RSS feeds
-                logger.info("Step 1: Fetching new article URLs from RSS feeds...")
-                # Assuming fetch_new_articles now returns a list of article objects with a 'link' attribute
-                articles_to_process = self.rss_monitor.fetch_new_articles(limit=SCHEDULE_CONFIG['max_articles_per_run'])
+                effective_limit = limit if limit is not None else SCHEDULE_CONFIG['max_articles_per_run']
+                logger.info(f"Step 1: Fetching up to {effective_limit} new article URLs from RSS feeds...")
+                articles_to_process = self.rss_monitor.fetch_new_articles(limit=effective_limit)
                 logger.info(f"Found {len(articles_to_process)} new articles to process.")
 
                 for article_data in articles_to_process:
@@ -111,10 +113,16 @@ class ContentAutomationScheduler:
                         continue
 
                     # Step 3: Rewrite with AI
+                    # The prompt requires a domain for internal links. Let's extract it from the WordPress URL.
+                    wp_url = WORDPRESS_CONFIG.get('url', '')
+                    parsed_url = urlparse(wp_url)
+                    domain = f"{parsed_url.scheme}://{parsed_url.netloc}" if wp_url else ""
+
                     prompt = UNIVERSAL_PROMPT.format(
-                        titulo=extracted_data['metadata']['title'],
-                        resumo=extracted_data['metadata']['summary'],
-                        conteudo=extracted_data['content_html']
+                        title=extracted_data['metadata']['title'] or "Sem título",
+                        excerpt=extracted_data['metadata']['summary'] or "Sem resumo",
+                        domain=domain,
+                        content=extracted_data['content_html']
                     )
                     ai_result_json = self.ai_processor.send_prompt(prompt) # Assuming a method that returns the JSON string
                     ai_result = json.loads(ai_result_json)

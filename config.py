@@ -116,24 +116,10 @@ Você é um jornalista digital especializado em cultura pop, cinema e séries, c
 
 **Título:** {title}
 
-**Resumo:** {excerpt}
-
-**Tags disponíveis:** {tags_text}
+**Resumo (se disponível):** {excerpt}
 
 **Conteúdo:**
 {content}
-
-📤 **FORMATO DA RESPOSTA (obrigatório)**
-Responda exatamente no seguinte formato:
-
-## Novo Título:
-(título otimizado)
-
-## Novo Resumo:
-(resumo otimizado)
-
-## Novo Conteúdo:
-(conteúdo reestruturado com parágrafos curtos, <b>negrito</b> e <a href="">links internos</a>)
 
 📤 **FORMATO DA RESPOSTA (obrigatório)**
 Responda APENAS em JSON no seguinte formato:
