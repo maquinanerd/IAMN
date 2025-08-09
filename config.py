@@ -20,20 +20,21 @@ RSS_FEEDS = {
 # User Agent for requests
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 
-# AI Configuration with multiple keys for redundancy
+# AI Configuration with primary and backup keys.
+# The system will always try the first key in the list. If it fails, it will try the next one (backup).
 AI_CONFIG = {
     'movies': [
-        os.getenv('GEMINI_MOVIES_1'),
-        os.getenv('GEMINI_MOVIES_2'),
-        os.getenv('GEMINI_MOVIES_3'),
+        os.getenv('GEMINI_MOVIES_PRIMARY'),   # Chave principal para filmes
+        os.getenv('GEMINI_MOVIES_BACKUP_1'),  # 1º Backup para filmes
+        os.getenv('GEMINI_MOVIES_BACKUP_2'),  # 2º Backup para filmes
     ],
     'series': [
-        os.getenv('GEMINI_SERIES_1'),
-        os.getenv('GEMINI_SERIES_2'),
-        os.getenv('GEMINI_SERIES_3'),
+        os.getenv('GEMINI_SERIES_PRIMARY'),   # Chave principal para séries
+        os.getenv('GEMINI_SERIES_BACKUP_1'),  # 1º Backup para séries
+        os.getenv('GEMINI_SERIES_BACKUP_2'),  # 2º Backup para séries
     ],
     'games': [
-        os.getenv('GEMINI_GAMES_1'),
+        os.getenv('GEMINI_GAMES_PRIMARY'),    # Chave principal para games
     ],
 }
 

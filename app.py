@@ -41,9 +41,10 @@ from routes.api import api_bp
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(api_bp, url_prefix='/api')
 
-# Initialize and start the scheduler
-from services.scheduler import init_scheduler
-init_scheduler()
+# Initialize and start the scheduler, ensuring it doesn't run in the reloader process
+if not os.environ.get('WERKZEUG_RUN_MAIN'):
+    from services.scheduler import init_scheduler
+    init_scheduler()
 
 # Adicionado para permitir a execução direta para desenvolvimento
 if __name__ == '__main__':
