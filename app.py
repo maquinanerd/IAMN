@@ -41,8 +41,10 @@ from routes.api import api_bp
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(api_bp, url_prefix='/api')
 
-# Initialize and start the scheduler, ensuring it doesn't run in the reloader process
-if not os.environ.get('WERKZEUG_RUN_MAIN'):
+# Initialize and start the scheduler.
+# The condition ensures it runs in the actual app process, not the reloader's monitoring process.
+# This works for both development (with reloader) and production.
+if os.environ.get('WERKZEUG_RUN_MAIN') or not app.debug:
     from services.scheduler import init_scheduler
     init_scheduler()
 
