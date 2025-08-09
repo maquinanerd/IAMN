@@ -1,337 +1,133 @@
-// Dashboard JavaScript Functions
-
+// static/js/dashboard.js
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize dashboard
-    initializeDashboard();
-    
-    // Update current time
-    updateCurrentTime();
-    setInterval(updateCurrentTime, 1000);
-    
-    // Auto-refresh data every 30 seconds
-    setInterval(refreshDashboardData, 30000);
-    
-    // Initialize event listeners
-    initializeEventListeners();
-});
+    const API_PREFIX = '/api';
 
-function initializeDashboard() {
-    console.log('Content Automation Dashboard initialized');
-    
-    // Check if we're on the dashboard page
-    if (window.location.pathname === '/') {
-        loadInitialData();
-    }
-}
-
-function updateCurrentTime() {
-    const now = new Date();
-    const timeString = now.toLocaleString('pt-BR', {
-        timeZone: 'America/Sao_Paulo',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
-    
-    const timeElement = document.getElementById('current-time');
-    if (timeElement) {
-        timeElement.textContent = timeString;
-    }
-}
-
-function refreshDashboardData() {
-    // Refresh statistics
-    fetch('/api/stats')
-        .then(response => response.json())
-        .then(data => {
-            updateStatistics(data);
-        })
-        .catch(error => {
-            console.error('Error refreshing statistics:', error);
-        });
-    
-    // Refresh scheduler status
-    fetch('/api/scheduler-status')
-        .then(response => response.json())
-        .then(data => {
-            updateSchedulerStatus(data);
-        })
-        .catch(error => {
-            console.error('Error refreshing scheduler status:', error);
-        });
-    
-    // Refresh AI status
-    fetch('/api/ai-status')
-        .then(response => response.json())
-        .then(data => {
-            updateAIStatus(data);
-        })
-        .catch(error => {
-            console.error('Error refreshing AI status:', error);
-        });
-}
-
-function updateStatistics(data) {
-    // Update statistics cards if they exist
-    const statsCards = document.querySelectorAll('.card h4');
-    if (statsCards.length >= 4) {
-        statsCards[0].textContent = data.total_articles || 0;
-        statsCards[1].textContent = data.pending_articles || 0;
-        statsCards[2].textContent = data.processed_articles || 0;
-        statsCards[3].textContent = data.published_articles || 0;
-    }
-}
-
-function updateSchedulerStatus(data) {
-    const statusElement = document.getElementById('schedulerStatus');
-    if (statusElement) {
-        if (data.running) {
-            statusElement.innerHTML = '<span class="text-success">Ativo</span>';
+    // Helper function to update text content of an element
+    const updateText = (id, text) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = text;
         } else {
-            statusElement.innerHTML = '<span class="text-danger">Parado</span>';
+            console.warn(`Element with id "${id}" not found.`);
         }
-    }
-    
-    // Update next execution time
-    if (data.jobs && data.jobs.length > 0) {
-        const automationJob = data.jobs.find(job => job.id === 'automation_cycle');
-        if (automationJob && automationJob.next_run) {
-            nextRunTime = automationJob.next_run;
-            updateCountdown(automationJob.next_run);
-        }
-    }
-}
-
-function updateCountdown(nextRunTime) {
-    const nextExecTime = document.getElementById('next-execution-time');
-    const countdownTimer = document.getElementById('countdown-timer');
-    
-    if (!nextExecTime || !countdownTimer) return;
-    
-    const nextRun = new Date(nextRunTime);
-    const now = new Date();
-    const timeDiff = nextRun - now;
-    
-    // Update next execution time display
-    nextExecTime.textContent = nextRun.toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-    
-    if (timeDiff > 0) {
-        const minutes = Math.floor(timeDiff / 60000);
-        const seconds = Math.floor((timeDiff % 60000) / 1000);
-        
-        if (minutes > 0) {
-            countdownTimer.textContent = `${minutes}m ${seconds}s`;
-        } else {
-            countdownTimer.textContent = `${seconds}s`;
-        }
-        
-        // Change color based on time remaining
-        const countdownDiv = document.getElementById('next-execution-countdown');
-        if (minutes < 1) {
-            countdownDiv.className = 'text-danger fw-bold fs-5';
-        } else if (minutes < 5) {
-            countdownDiv.className = 'text-warning fw-bold fs-5';
-        } else {
-            countdownDiv.className = 'text-success fw-bold fs-5';
-        }
-    } else {
-        countdownTimer.textContent = 'Executando...';
-        const countdownDiv = document.getElementById('next-execution-countdown');
-        countdownDiv.className = 'text-info fw-bold fs-5';
-    }
-}
-
-// Store next run time globally to avoid constant API calls
-let nextRunTime = null;
-
-// Update countdown every second using stored time
-setInterval(() => {
-    if (nextRunTime) {
-        updateCountdown(nextRunTime);
-    }
-}, 1000);
-
-function updateAIStatus(data) {
-    // Update AI status indicators
-    console.log('AI Status updated:', data);
-}
-
-function loadInitialData() {
-    // Load initial dashboard data
-    refreshDashboardData();
-}
-
-function initializeEventListeners() {
-    // Execute Now button
-    const executeNowBtn = document.getElementById('executeNowBtn');
-    if (executeNowBtn) {
-        executeNowBtn.addEventListener('click', function() {
-            executeAutomationNow();
-        });
-    }
-    
-    // Pause button
-    const pauseBtn = document.getElementById('pauseBtn');
-    if (pauseBtn) {
-        pauseBtn.addEventListener('click', function() {
-            pauseAutomation();
-        });
-    }
-    
-    // Resume button
-    const resumeBtn = document.getElementById('resumeBtn');
-    if (resumeBtn) {
-        resumeBtn.addEventListener('click', function() {
-            resumeAutomation();
-        });
-    }
-}
-
-function executeAutomationNow() {
-    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
-    modal.show();
-    
-    const button = document.getElementById('executeNowBtn');
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Executando...';
-    button.disabled = true;
-    
-    fetch('/api/execute-now', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        modal.hide();
-        button.innerHTML = originalText;
-        button.disabled = false;
-        
-        if (data.error) {
-            showAlert('Erro ao executar automação: ' + data.error, 'danger');
-        } else {
-            showAlert('Automação executada com sucesso!', 'success');
-            // Refresh data after execution
-            setTimeout(refreshDashboardData, 2000);
-        }
-    })
-    .catch(error => {
-        modal.hide();
-        button.innerHTML = originalText;
-        button.disabled = false;
-        showAlert('Erro na comunicação: ' + error.message, 'danger');
-    });
-}
-
-function pauseAutomation() {
-    fetch('/api/pause-automation', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            showAlert('Erro ao pausar automação: ' + data.error, 'danger');
-        } else {
-            showAlert('Automação pausada com sucesso!', 'warning');
-            refreshDashboardData();
-        }
-    })
-    .catch(error => {
-        showAlert('Erro na comunicação: ' + error.message, 'danger');
-    });
-}
-
-function resumeAutomation() {
-    fetch('/api/resume-automation', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            showAlert('Erro ao retomar automação: ' + data.error, 'danger');
-        } else {
-            showAlert('Automação retomada com sucesso!', 'success');
-            refreshDashboardData();
-        }
-    })
-    .catch(error => {
-        showAlert('Erro na comunicação: ' + error.message, 'danger');
-    });
-}
-
-function showAlert(message, type = 'info') {
-    // Create alert element
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    // Find container to insert alert
-    const container = document.querySelector('main.container-fluid');
-    if (container) {
-        container.insertBefore(alertDiv, container.firstChild);
-        
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
-            if (alertDiv.parentNode) {
-                alertDiv.remove();
-            }
-        }, 5000);
-    } else {
-        // Fallback to browser alert
-        alert(message);
-    }
-}
-
-// Utility functions
-function formatDateTime(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString('pt-BR', {
-        timeZone: 'America/Sao_Paulo',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-function formatStatus(status) {
-    const statusMap = {
-        'pending': { class: 'secondary', text: 'Pendente' },
-        'processing': { class: 'warning', text: 'Processando' },
-        'processed': { class: 'info', text: 'Processado' },
-        'published': { class: 'success', text: 'Publicado' },
-        'failed': { class: 'danger', text: 'Falhou' }
     };
-    
-    const statusInfo = statusMap[status] || { class: 'secondary', text: status };
-    return `<span class="badge bg-${statusInfo.class}">${statusInfo.text}</span>`;
-}
 
-// Export functions for use in other scripts
-window.dashboardUtils = {
-    refreshDashboardData,
-    executeAutomationNow,
-    pauseAutomation,
-    resumeAutomation,
-    showAlert,
-    formatDateTime,
-    formatStatus
-};
+    // Helper function to update status indicators
+    const updateStatusIndicator = (id, isOnline) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.classList.remove('text-success', 'text-danger', 'text-warning');
+            if (isOnline === true) {
+                element.textContent = 'Online';
+                element.classList.add('text-success');
+            } else if (isOnline === false) {
+                element.textContent = 'Offline';
+                element.classList.add('text-danger');
+            } else {
+                element.textContent = 'Verificando...';
+                element.classList.add('text-warning');
+            }
+        }
+    };
+
+    // Fetch and display system statistics
+    function fetchStats() {
+        fetch(`${API_PREFIX}/stats`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                updateText('stat-total', data.total_articles);
+                updateText('stat-pending', data.pending_articles);
+                updateText('stat-processing', data.processing_articles);
+                updateText('stat-processed', data.processed_articles);
+                updateText('stat-published', data.published_articles);
+                updateText('stat-failed', data.failed_articles);
+                updateText('stat-today-published', data.today_published);
+            })
+            .catch(error => console.error('Error fetching stats:', error));
+    }
+
+    // Fetch and display AI status
+    function fetchAiStatus() {
+        fetch(`${API_PREFIX}/ai-status`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                const container = document.getElementById('ai-status-container');
+                if (!container) return;
+                container.innerHTML = ''; // Clear previous content
+                Object.entries(data).forEach(([key, value]) => {
+                    const statusDiv = document.createElement('div');
+                    statusDiv.className = 'd-flex justify-content-between align-items-center mb-1';
+                    statusDiv.innerHTML = `
+                        <span class="text-capitalize">${key} Keys:</span>
+                        <span class="badge bg-primary rounded-pill">${value.available_keys}</span>
+                    `;
+                    container.appendChild(statusDiv);
+                });
+            })
+            .catch(error => console.error('Error fetching AI status:', error));
+    }
+
+    // Fetch and display Scheduler status
+    function fetchSchedulerStatus() {
+        fetch(`${API_PREFIX}/scheduler-status`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                updateStatusIndicator('scheduler-status', data.running);
+                const nextRunElement = document.getElementById('scheduler-next-run');
+                if (nextRunElement && data.jobs.length > 0 && data.jobs[0].next_run) {
+                    const nextRun = new Date(data.jobs[0].next_run).toLocaleString();
+                    nextRunElement.textContent = `Próxima Execução: ${nextRun}`;
+                }
+            })
+            .catch(error => console.error('Error fetching scheduler status:', error));
+    }
+
+    // Fetch and display WordPress status
+    function fetchWordPressStatus() {
+        updateStatusIndicator('wordpress-status', null); // Set to 'Verificando...'
+        fetch(`${API_PREFIX}/wordpress-test`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                updateStatusIndicator('wordpress-status', data.connected);
+            })
+            .catch(error => {
+                console.error('Error fetching WordPress status:', error);
+                updateStatusIndicator('wordpress-status', false);
+            });
+    }
+
+    // Fetch and display recent articles
+    function fetchRecentArticles() {
+        fetch(`${API_PREFIX}/recent-articles?limit=10`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                const tbody = document.getElementById('recent-articles-tbody');
+                if (!tbody) return;
+                tbody.innerHTML = ''; // Clear previous content
+                data.forEach(article => {
+                    const statusBadges = { 'pending': 'bg-secondary', 'processing': 'bg-info', 'processed': 'bg-primary', 'published': 'bg-success', 'failed': 'bg-danger' };
+                    const statusClass = statusBadges[article.status] || 'bg-dark';
+                    const row = `<tr><td>${article.id}</td><td>${article.title.substring(0, 50)}...</td><td><span class="badge ${statusClass}">${article.status}</span></td><td>${article.feed_type}</td><td>${new Date(article.created_at).toLocaleString()}</td></tr>`;
+                    tbody.innerHTML += row;
+                });
+            })
+            .catch(error => console.error('Error fetching recent articles:', error));
+    }
+
+    // Initial data load and set interval for refresh
+    function loadAllData() {
+        fetchStats();
+        fetchAiStatus();
+        fetchSchedulerStatus();
+        fetchWordPressStatus();
+        fetchRecentArticles();
+    }
+
+    loadAllData();
+    setInterval(loadAllData, 30000);
+});
