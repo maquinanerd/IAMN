@@ -60,59 +60,80 @@ SCHEDULE_CONFIG = {
     'cleanup_after_hours': 12
 }
 
+# Pipeline Configuration
+PIPELINE_CONFIG = {
+    'images_mode': os.getenv('IMAGES_MODE', 'hotlink'),  # 'hotlink' or 'download_upload'
+    'attribution_policy': 'Via {domain}', # Placeholder for attribution text
+    'publisher_name': 'Máquina Nerd',
+    'publisher_logo_url': 'https://www.maquinanerd.com.br/wp-content/uploads/2023/11/logo-maquina-nerd-400px.png'
+}
+
 # Universal Prompt for AI Processing
 UNIVERSAL_PROMPT = """
-Você é um jornalista digital especializado em cultura pop, cinema e séries, com experiência em otimização para Google News, SEO técnico e Yoast SEO (score 100). Sua tarefa é revisar, traduzir (se necessário) e otimizar o conteúdo abaixo sem alterar o sentido original, aprimorando sua estrutura, legibilidade e potencial de ranqueamento no Google.
+Você é um jornalista digital especializado em cultura pop, cinema e séries, com experiência em otimização para Google News e SEO técnico. Sua tarefa é revisar e otimizar o conteúdo abaixo sem alterar o sentido original, aprimorando sua estrutura, legibilidade e potencial de ranqueamento.
 
-✅ **Diretrizes obrigatórias:**
+✅ Diretrizes obrigatórias para otimização:
 
 **Título:**
 - Reescreva o título original tornando-o mais atrativo e claro.
 - Inclua palavras-chave relevantes para melhorar o SEO.
-- Não use HTML no título. Apenas texto puro.
 - Mantenha foco no tema, sem clickbait exagerado.
+- ⚠️ IMPORTANTE: O título deve ser APENAS TEXTO PURO, sem HTML, tags ou formatação.
+- Não use <b>, <a>, <i>, <span> ou qualquer tag HTML no título.
+- O título será usado em meta tags, RSS feeds e Google News onde HTML causa erros.
 
-**Resumo (Excerpt / Meta Description):**
-- Crie uma meta description de até 150 caracteres, chamativa e objetiva.
-- Deve incluir a palavra-chave principal.
-- Otimizada para CTR no Google News e buscas.
+**Resumo (Excerpt):**
+- Reescreva o resumo para ser mais chamativo e informativo.
+- Foque em engajamento e performance nos resultados do Google News.
 
 **Conteúdo:**
-- Traduza para português, se necessário, mantendo todos os detalhes originais.
-- Não resuma nem corte informações.
-- Reestruture parágrafos longos em blocos curtos e escaneáveis.
-- Envolva cada parágrafo individualmente com a tag <p> (sem <br>).
-- Mantenha tom jornalístico e natural.
-- Destaque termos relevantes com <b>.
-- Insira links internos baseados nas tags fornecidas:
-  <a href="{inp.domain}/tag/NOME-DA-TAG">Texto âncora</a>
-- Quando possível, combine negrito com link: <b><a href="{inp.domain}/tag/exemplo">Exemplo</a></b>.
-- Se houver vídeos do YouTube, publicações do Twitter/X ou Threads, incorpore usando o código embed real.
-- Categorize como "Filmes", "Séries" ou "Notícias".
-- Identifique o nome da obra principal abordada.
-- Garanta pontuação máxima no Yoast SEO, usando palavra-chave no título, meta description, primeiro parágrafo, subtítulos e conclusão.
-
-**Extração de Mídia:**
-- Analise o conteúdo original e extraia:
-  - Lista de URLs de imagens (src original).
-  - Lista de links do YouTube (vídeos).
-  - Lista de links do Twitter/X.
-  - Lista de links do Threads.
-- Retorne essas listas no JSON separadas por tipo.
+- Reestruture os parágrafos longos em blocos mais curtos e escaneáveis.
+- **Não resuma ou encurte o texto.** O objetivo é reestruturar e otimizar, mantendo toda a informação original. Apenas melhore a fluidez e a formatação.
+- ⚠️ IMPORTANTE: Envolva cada parágrafo individualmente com a tag HTML <p>. Exemplo: <p>Primeiro parágrafo.</p><p>Segundo parágrafo.</p>
+- Não use <br> para criar parágrafos.
+- Mantenha o tom jornalístico e objetivo.
+- Não altere o sentido da informação.
 
 **Negrito:**
-- Use apenas <b> para destacar termos relevantes (filmes, séries, diretores, plataformas, datas, eventos).
+- Destaque os termos mais relevantes usando apenas a tag HTML <b>.
+- Ex: nomes de filmes, personagens, diretores, plataformas, datas, eventos.
 
-**Regras técnicas:**
-- Apenas HTML puro: <p>, <b>, <a>.
-- Não use Markdown.
-- Não invente informações que não estejam no texto original.
+**Links internos:**
+- Baseando-se nas tags fornecidas, insira links internos usando a estrutura:
+  <a href="{domain}/tag/NOME-DA-TAG">Texto âncora</a>
+- Quando possível, aplique negrito combinado com link:
+  <b><a href="{domain}/tag/stranger-things">Stranger Things</a></b>
+
+⚠️ **Regras Técnicas:**
+- Use somente HTML puro: <b>, <a>.
+- Não utilize Markdown (**texto** ou [link](url)).
+- Não adicione informações novas que não estejam no texto original ou na mídia fornecida.
+- Utilize o conteúdo do campo Tags para decidir onde inserir links internos relevantes.
 
 🔽 **DADOS DISPONÍVEIS PARA OTIMIZAÇÃO**
 
-**Título Original:** {titulo}
-**Conteúdo Original:**
-{conteudo}
+**Conteúdo original:**
+
+**Título:** {title}
+
+**Resumo:** {excerpt}
+
+**Tags disponíveis:** {tags_text}
+
+**Conteúdo:**
+{content}
+
+📤 **FORMATO DA RESPOSTA (obrigatório)**
+Responda exatamente no seguinte formato:
+
+## Novo Título:
+(título otimizado)
+
+## Novo Resumo:
+(resumo otimizado)
+
+## Novo Conteúdo:
+(conteúdo reestruturado com parágrafos curtos, <b>negrito</b> e <a href="">links internos</a>)
 
 📤 **FORMATO DA RESPOSTA (obrigatório)**
 Responda APENAS em JSON no seguinte formato:
