@@ -54,3 +54,12 @@ class ProcessingLog(db.Model):
     
     def __repr__(self):
         return f'<ProcessingLog {self.id}: {self.action}>'
+
+class ExtractedMedia(db.Model):
+    __tablename__ = 'extracted_media'
+
+    id = db.Column(Integer, primary_key=True)
+    article_id = db.Column(Integer, db.ForeignKey('articles.id'), nullable=False)
+    media_type = db.Column(String(50), nullable=False)  # 'image', 'youtube', 'twitter', 'threads'
+    url = db.Column(String(2048), nullable=False)
+    created_at = db.Column(DateTime, default=datetime.utcnow)

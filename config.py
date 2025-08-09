@@ -110,11 +110,9 @@ Você é um jornalista digital especializado em cultura pop, cinema e séries, c
 
 🔽 **DADOS DISPONÍVEIS PARA OTIMIZAÇÃO**
 
-**Título Original:** {inp.title}
-**Resumo Original:** {inp.excerpt}
-**Tags Disponíveis:** {inp.tags_text}
+**Título Original:** {titulo}
 **Conteúdo Original:**
-{inp.content_html}
+{conteudo}
 
 📤 **FORMATO DA RESPOSTA (obrigatório)**
 Responda APENAS em JSON no seguinte formato:
