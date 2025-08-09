@@ -118,13 +118,21 @@ class ContentAutomationScheduler:
                     parsed_url = urlparse(wp_url)
                     domain = f"{parsed_url.scheme}://{parsed_url.netloc}" if wp_url else ""
 
+                    # Determine the category from the feed type (e.g., 'movies_screenrant' -> 'movies')
+                    category = article_data.feed_type.split('_')[0]
+
                     prompt = UNIVERSAL_PROMPT.format(
                         title=extracted_data['metadata']['title'] or "Sem título",
                         excerpt=extracted_data['metadata']['summary'] or "Sem resumo",
                         domain=domain,
                         content=extracted_data['content_html']
                     )
-                    ai_result_json = self.ai_processor.send_prompt(prompt) # Assuming a method that returns the JSON string
+                    ai_result_json = self.ai_processor.send_prompt(prompt, category=category)
+
+                    if not ai_result_json:
+                        logger.error(f"AI processing failed for {source_url} after trying all models. Skipping article.")
+                        continue
+
                     ai_result = json.loads(ai_result_json)
 
                     # Step 4: Generate Schema.org
