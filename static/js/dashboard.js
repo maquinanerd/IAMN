@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => console.error('Error fetching recent articles:', error));
     }
 
-    // Function to load frequently updated data
+    // Function to load data that changes frequently
     function loadFrequentData() {
         fetchStats();
         fetchAiStatus();
@@ -135,9 +135,16 @@ document.addEventListener('DOMContentLoaded', function() {
         fetchRecentArticles();
     }
 
-    // Function to load infrequently updated data
+    // Function to load data that changes infrequently
     function loadInfrequentData() {
         fetchWordPressStatus();
     }
 
+    // Initial data load
+    loadFrequentData();
+    loadInfrequentData();
+
+    // Set intervals for refreshing data
+    setInterval(loadFrequentData, 30000); // Refresh frequent data every 30 seconds
+    setInterval(loadInfrequentData, 300000); // Refresh infrequent data every 5 minutes
 });
