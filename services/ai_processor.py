@@ -63,13 +63,13 @@ class AIProcessor:
                 # Determine which AI to use based on feed type (e.g., 'movies_screenrant' -> 'movies')
                 ai_type = article.feed_type.split('_')[0]
 
-                result = self._process_with_ai(article, ai_type)
+                result, error_msg = self._process_with_ai(article, ai_type)
 
                 if result:
                     # Update article with AI results
                     article.titulo_final = re.sub(r'</?strong>', '', result.get('titulo_final', ''))
                     article.conteudo_final = self._correct_paragraphs(result.get('conteudo_final'))
-                    article.meta_description = result.get('meta_description')
+                    article.meta_description = result.get('meta_description', '')
                     article.focus_keyword = result.get('focus_keyword')
                     article.categoria = result.get('categoria')
                     article.obra_principal = result.get('obra_principal')
@@ -85,9 +85,9 @@ class AIProcessor:
                     logger.info(f"Successfully processed article: {article.original_title}")
                 else:
                     article.status = 'failed'
-                    article.error_message = 'AI processing failed'
+                    article.error_message = error_msg or 'AI processing failed without a specific error message.'
                     self._log_processing(article.id, 'AI_PROCESSING', 'AI processing failed', 
-                                       article.ai_used, False)
+                                       article.ai_used or 'N/A', False)
 
                 db.session.commit()
 
@@ -101,24 +101,30 @@ class AIProcessor:
 
     def _process_with_ai(self, article, ai_type):
         """Process article with specified AI type, iterating through available clients on failure."""
-        if ai_type not in self.clients or not self.clients[ai_type]:
-            logger.error(f"No AI clients configured for type: {ai_type}")
-            return None
+        if not self.clients.get(ai_type):
+            error_msg = f"No AI clients configured for type: {ai_type}"
+            logger.error(error_msg)
+            return None, error_msg
 
+        last_error = "Unknown AI processing error."
         for i, client in enumerate(self.clients[ai_type]):
             ai_name = f"{ai_type}_model_#{i+1}"
             logger.info(f"Attempting to process article {article.id} with {ai_name}")
-            result = self._call_ai(client, article, ai_name)
+            result, last_error = self._call_ai(client, article, ai_name)
             if result:
                 article.ai_used = ai_name
-                return result
-            logger.warning(f"AI call failed with {ai_name}. Trying next model if available.")
+                return result, None
+            logger.warning(f"AI call failed with {ai_name}: {last_error}. Trying next model if available.")
 
-        logger.error(f"All AI clients for type {ai_type} failed to process article {article.id}")
-        return None
+        final_error_msg = f"All AI clients for type '{ai_type}' failed. Last error: {last_error}"
+        logger.error(f"{final_error_msg} for article {article.id}")
+        return None, final_error_msg
 
     def _call_ai(self, client: GenerativeServiceClient, article, ai_name):
-        """Make actual AI call using the low-level GenerativeServiceClient."""
+        """
+        Make actual AI call using the low-level GenerativeServiceClient.
+        Returns a tuple: (result_dict, error_message_string).
+        """
         try:
             prompt = UNIVERSAL_PROMPT.format(
                 titulo=article.original_title,
@@ -143,21 +149,26 @@ class AIProcessor:
                     required_fields = ['titulo_final', 'conteudo_final', 'meta_description', 
                                      'focus_keyword', 'categoria', 'obra_principal', 'tags']
                     if all(field in result for field in required_fields):
-                        return result
+                        return result, None
                     else:
-                        logger.error(f"Missing required fields in AI response from {ai_name}")
-                        return None
+                        missing_fields = [f for f in required_fields if f not in result]
+                        error_msg = f"Missing required fields: {', '.join(missing_fields)}"
+                        logger.error(f"{error_msg} from {ai_name}")
+                        return None, error_msg
 
                 except json.JSONDecodeError as e:
-                    logger.error(f"Invalid JSON response from {ai_name}: {str(e)}. Response text: {response_text[:200]}")
-                    return None
+                    error_msg = f"Invalid JSON response: {e}. Response text: {response_text[:200]}..."
+                    logger.error(f"{error_msg} from {ai_name}")
+                    return None, error_msg
             else:
-                logger.error(f"Empty response from {ai_name}")
-                return None
+                error_msg = f"Empty response from {ai_name}"
+                logger.error(error_msg)
+                return None, error_msg
 
         except Exception as e:
-            logger.error(f"AI call failed for {ai_name}: {str(e)}")
-            return None
+            error_msg = f"API call failed for {ai_name}: {str(e)}"
+            logger.error(error_msg)
+            return None, error_msg
 
     def _correct_paragraphs(self, content):
         """Ensure content has proper paragraph structure and format"""
