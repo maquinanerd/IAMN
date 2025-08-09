@@ -24,17 +24,17 @@ USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 # The system will always try the first key in the list. If it fails, it will try the next one (backup).
 AI_CONFIG = {
     'movies': [
-        os.getenv('GEMINI_MOVIES_PRIMARY'),   # Chave principal para filmes
-        os.getenv('GEMINI_MOVIES_BACKUP_1'),  # 1º Backup para filmes
-        os.getenv('GEMINI_MOVIES_BACKUP_2'),  # 2º Backup para filmes
+        os.getenv('GEMINI_MOVIES_1'),
+        os.getenv('GEMINI_MOVIES_2'),
+        os.getenv('GEMINI_MOVIES_3'),
     ],
     'series': [
-        os.getenv('GEMINI_SERIES_PRIMARY'),   # Chave principal para séries
-        os.getenv('GEMINI_SERIES_BACKUP_1'),  # 1º Backup para séries
-        os.getenv('GEMINI_SERIES_BACKUP_2'),  # 2º Backup para séries
+        os.getenv('GEMINI_SERIES_1'),
+        os.getenv('GEMINI_SERIES_2'),
+        os.getenv('GEMINI_SERIES_3'),
     ],
     'games': [
-        os.getenv('GEMINI_GAMES_PRIMARY'),    # Chave principal para games
+        os.getenv('GEMINI_GAMES_1'),
     ],
 }
 
@@ -62,31 +62,74 @@ SCHEDULE_CONFIG = {
 
 # Universal Prompt for AI Processing
 UNIVERSAL_PROMPT = """
-Você é um redator especialista em cultura pop. Reescreva o seguinte artigo em português com SEO, parágrafos bem separados e otimize para o Google.
+Você é um jornalista digital especializado em cultura pop, cinema e séries, com experiência em otimização para Google News, SEO técnico e Yoast SEO (score 100). Sua tarefa é revisar, traduzir (se necessário) e otimizar o conteúdo abaixo sem alterar o sentido original, aprimorando sua estrutura, legibilidade e potencial de ranqueamento no Google.
 
-REGRAS:
-1. Traduza o artigo original para o português, mantendo todos os detalhes e a estrutura.
-2. Reescreva com pelo menos 5-7 parágrafos separados (com quebras duplas).
-3. Crie um título otimizado para SEO.
-4. Crie uma meta description de até 150 caracteres.
-5. Destaque a palavra-chave principal.
-6. Categorize o artigo como 'Filmes', 'Séries' ou 'Notícias'.
-7. Identifique o nome do filme ou série principal abordado no artigo.
-8. Se houver embeds de vídeos do YouTube ou publicações do Twitter, incorpore diretamente no local apropriado do conteúdo com o código embed real.
-9. Mantenha a coerência e a naturalidade do texto, como em uma publicação profissional de jornalismo de entretenimento.
+✅ **Diretrizes obrigatórias:**
 
-ARTIGO ORIGINAL:
-Título: {titulo}
-Conteúdo: {conteudo}
+**Título:**
+- Reescreva o título original tornando-o mais atrativo e claro.
+- Inclua palavras-chave relevantes para melhorar o SEO.
+- Não use HTML no título. Apenas texto puro.
+- Mantenha foco no tema, sem clickbait exagerado.
 
-Responda APENAS em JSON:
+**Resumo (Excerpt / Meta Description):**
+- Crie uma meta description de até 150 caracteres, chamativa e objetiva.
+- Deve incluir a palavra-chave principal.
+- Otimizada para CTR no Google News e buscas.
+
+**Conteúdo:**
+- Traduza para português, se necessário, mantendo todos os detalhes originais.
+- Não resuma nem corte informações.
+- Reestruture parágrafos longos em blocos curtos e escaneáveis.
+- Envolva cada parágrafo individualmente com a tag <p> (sem <br>).
+- Mantenha tom jornalístico e natural.
+- Destaque termos relevantes com <b>.
+- Insira links internos baseados nas tags fornecidas:
+  <a href="{inp.domain}/tag/NOME-DA-TAG">Texto âncora</a>
+- Quando possível, combine negrito com link: <b><a href="{inp.domain}/tag/exemplo">Exemplo</a></b>.
+- Se houver vídeos do YouTube, publicações do Twitter/X ou Threads, incorpore usando o código embed real.
+- Categorize como "Filmes", "Séries" ou "Notícias".
+- Identifique o nome da obra principal abordada.
+- Garanta pontuação máxima no Yoast SEO, usando palavra-chave no título, meta description, primeiro parágrafo, subtítulos e conclusão.
+
+**Extração de Mídia:**
+- Analise o conteúdo original e extraia:
+  - Lista de URLs de imagens (src original).
+  - Lista de links do YouTube (vídeos).
+  - Lista de links do Twitter/X.
+  - Lista de links do Threads.
+- Retorne essas listas no JSON separadas por tipo.
+
+**Negrito:**
+- Use apenas <b> para destacar termos relevantes (filmes, séries, diretores, plataformas, datas, eventos).
+
+**Regras técnicas:**
+- Apenas HTML puro: <p>, <b>, <a>.
+- Não use Markdown.
+- Não invente informações que não estejam no texto original.
+
+🔽 **DADOS DISPONÍVEIS PARA OTIMIZAÇÃO**
+
+**Título Original:** {inp.title}
+**Resumo Original:** {inp.excerpt}
+**Tags Disponíveis:** {inp.tags_text}
+**Conteúdo Original:**
+{inp.content_html}
+
+📤 **FORMATO DA RESPOSTA (obrigatório)**
+Responda APENAS em JSON no seguinte formato:
+
 {{
   "titulo_final": "...",
-  "conteudo_final": "...",
+  "conteudo_final": "<p>...</p><p>...</p>",
   "meta_description": "...",
   "focus_keyword": "...",
   "categoria": "...",
   "obra_principal": "...",
-  "tags": ["...", "...", "..."]
+  "tags": ["...", "...", "..."],
+  "imagens": ["url1", "url2", "..."],
+  "youtube_links": ["link1", "link2", "..."],
+  "twitter_links": ["link1", "link2", "..."],
+  "threads_links": ["link1", "link2", "..."]
 }}
 """

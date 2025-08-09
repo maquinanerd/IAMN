@@ -11,7 +11,7 @@ from google.api_core import client_options as client_options_lib
 # Tipos necessários para construir a requisição de baixo nível
 from google.ai.generativelanguage_v1beta.types import (Content, Part, GenerationConfig, GenerateContentRequest)
 from extensions import db
-from models import Article, ProcessingLog
+from models import Article, ProcessingLog, ExtractedMedia
 from config import AI_CONFIG, UNIVERSAL_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,10 @@ class AIProcessor:
                     article.obra_principal = result.get('obra_principal')
                     article.tags = json.dumps(result.get('tags', []))
                     article.status = 'processed'
+
+                    # Salva as mídias extraídas pela IA
+                    self._save_extracted_media(article.id, result)
+
                     article.processed_at = datetime.utcnow()
                     article.processing_time = int(time.time() - start_time)
 
@@ -128,7 +132,8 @@ class AIProcessor:
         try:
             prompt = UNIVERSAL_PROMPT.format(
                 titulo=article.original_title,
-                conteudo=article.original_content
+                conteudo=article.original_content,
+                # Adicione outros campos se o prompt precisar, ex: domain, tags_text
             )
 
             # Construir a requisição para o GenerativeServiceClient
@@ -147,7 +152,8 @@ class AIProcessor:
                 try:
                     result = json.loads(response_text)
                     required_fields = ['titulo_final', 'conteudo_final', 'meta_description', 
-                                     'focus_keyword', 'categoria', 'obra_principal', 'tags']
+                                     'focus_keyword', 'categoria', 'obra_principal', 'tags',
+                                     'imagens', 'youtube_links', 'twitter_links', 'threads_links']
                     if all(field in result for field in required_fields):
                         return result, None
                     else:
@@ -210,6 +216,21 @@ class AIProcessor:
             db.session.add(log)
         except Exception as e:
             logger.error(f"Error creating processing log object for article {article_id}: {str(e)}")
+
+    def _save_extracted_media(self, article_id, result_json):
+        """Saves extracted media URLs to the database."""
+        media_types = {
+            'image': result_json.get('imagens', []),
+            'youtube': result_json.get('youtube_links', []),
+            'twitter': result_json.get('twitter_links', []),
+            'threads': result_json.get('threads_links', []),
+        }
+        for media_type, urls in media_types.items():
+            if not isinstance(urls, list): continue
+            for url in urls:
+                if not ExtractedMedia.query.filter_by(article_id=article_id, url=url).first():
+                    media_entry = ExtractedMedia(article_id=article_id, media_type=media_type, url=url)
+                    db.session.add(media_entry)
 
     def get_ai_status(self):
         """Get status of all AIs"""
