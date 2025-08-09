@@ -112,7 +112,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 data.forEach(article => {
                     const statusBadges = { 'pending': 'bg-secondary', 'processing': 'bg-info', 'processed': 'bg-primary', 'published': 'bg-success', 'failed': 'bg-danger' };
                     const statusClass = statusBadges[article.status] || 'bg-dark';
-                    const row = `<tr><td>${article.id}</td><td>${article.title.substring(0, 50)}...</td><td><span class="badge ${statusClass}">${article.status}</span></td><td>${article.feed_type}</td><td>${new Date(article.created_at).toLocaleString()}</td></tr>`;
+                    
+                    // Display error message if it exists
+                    let errorCell = '-';
+                    if (article.status === 'failed' && article.error_message) {
+                        // Show a snippet of the error and the full error on hover
+                        const shortError = article.error_message.substring(0, 40) + (article.error_message.length > 40 ? '...' : '');
+                        errorCell = `<small class="text-danger" title="${article.error_message}">${shortError}</small>`;
+                    }
+                    const row = `<tr><td>${article.id}</td><td title="${article.title}">${article.title.substring(0, 40)}...</td><td><span class="badge ${statusClass}">${article.status}</span></td><td>${article.feed_type}</td><td>${new Date(article.created_at).toLocaleString()}</td><td>${errorCell}</td></tr>`;
                     tbody.innerHTML += row;
                 });
             })
