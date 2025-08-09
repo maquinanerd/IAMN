@@ -41,12 +41,16 @@ from routes.api import api_bp
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(api_bp, url_prefix='/api')
 
-# Initialize and start the scheduler.
-# The condition ensures it runs in the actual app process, not the reloader's monitoring process.
-# This works for both development (with reloader) and production.
-if os.environ.get('WERKZEUG_RUN_MAIN') or not app.debug:
+# Initialize and start the scheduler. The condition below is crucial to avoid
+# running the scheduler twice when Flask is in debug mode (which uses a reloader).
+#
+# 1. `not app.debug`: In a production environment (debug=False), the scheduler starts.
+# 2. `os.environ.get('WERKZEUG_RUN_MAIN') == 'true'`: In debug mode, Flask runs two
+#    processes. This ensures the scheduler only starts in the 'reloaded' child process,
+#    not the parent monitoring process.
+if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     from services.scheduler import init_scheduler
-    init_scheduler()
+    init_scheduler(app)
 
 # Adicionado para permitir a execução direta para desenvolvimento
 if __name__ == '__main__':
