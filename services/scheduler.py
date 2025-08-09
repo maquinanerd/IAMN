@@ -9,8 +9,8 @@ from services.ai_processor import AIProcessor
 from services.wordpress_publisher import WordPressPublisher
 from services.content_extractor import ContentExtractor
 from services.schema_generator import SchemaGenerator
-from dto import PublishedArticleDTO, FeaturedImageDTO
-from config import SCHEDULE_CONFIG, PIPELINE_CONFIG, UNIVERSAL_PROMPT, WORDPRESS_CONFIG
+from dto import PublishedArticleDTO, FeaturedImageDTO, ExtractedArticleDTO
+from config import SCHEDULE_CONFIG, PIPELINE_CONFIG, UNIVERSAL_PROMPT, WORDPRESS_CONFIG, PIPELINE_ORDER, RSS_FEEDS
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,15 @@ class ContentAutomationScheduler:
     def start(self):
         """Start the automation scheduler"""
         if not self.is_running:
+            # Adiciona um job para executar o ciclo imediatamente na inicialização.
+            # Este job roda apenas uma vez.
+            self.scheduler.add_job(
+                func=self.automation_cycle,
+                trigger='date',
+                id='content_automation_initial_run',
+                name='Content Automation Initial Run'
+            )
+
             # Adiciona o job principal de automação de conteúdo.
             # id: Identificador único para evitar duplicação.
             # replace_existing=True: Garante que, se um job com o mesmo ID já existir, ele será substituído.
@@ -97,79 +106,93 @@ class ContentAutomationScheduler:
         with self.app.app_context():
             try:
                 logger.info("=== Starting automation cycle ===")
-                effective_limit = limit if limit is not None else SCHEDULE_CONFIG['max_articles_per_run']
-                logger.info(f"Step 1: Fetching up to {effective_limit} new article URLs from RSS feeds...")
-                articles_to_process = self.rss_monitor.fetch_new_articles(limit=effective_limit)
-                logger.info(f"Found {len(articles_to_process)} new articles to process.")
-
-                for article_data in articles_to_process:
-                    source_url = article_data.link
-                    logger.info(f"--- Processing URL: {source_url} ---")
-
-                    # Step 2: Extract and sanitize content
-                    extracted_data = self.content_extractor.extract(source_url)
-                    if not extracted_data:
-                        logger.error(f"Extraction failed for {source_url}, skipping.")
+                
+                for feed_key in PIPELINE_ORDER:
+                    if feed_key not in RSS_FEEDS:
+                        logger.warning(f"Feed key '{feed_key}' from PIPELINE_ORDER not found in RSS_FEEDS. Skipping.")
                         continue
 
-                    # Step 3: Rewrite with AI
-                    # The prompt requires a domain for internal links. Let's extract it from the WordPress URL.
-                    wp_url = WORDPRESS_CONFIG.get('url', '')
-                    parsed_url = urlparse(wp_url)
-                    domain = f"{parsed_url.scheme}://{parsed_url.netloc}" if wp_url else ""
+                    feed_config = RSS_FEEDS[feed_key]
+                    logger.info(f"--- Starting processing for feed: {feed_key} ---")
 
-                    # Determine the category from the feed type (e.g., 'movies_screenrant' -> 'movies')
-                    category = article_data.feed_type.split('_')[0]
-
-                    prompt = UNIVERSAL_PROMPT.format(
-                        title=extracted_data['metadata']['title'] or "Sem título",
-                        excerpt=extracted_data['metadata']['summary'] or "Sem resumo",
-                        domain=domain,
-                        content=extracted_data['content_html']
+                    # Step 1: Fetch new articles for the current feed in the pipeline
+                    articles_to_process = self.rss_monitor.fetch_new_articles_from_source(
+                        feed_key=feed_key,
+                        urls=feed_config['urls'],
+                        limit=SCHEDULE_CONFIG.get('max_articles_per_feed', 3)
                     )
-                    ai_result_json = self.ai_processor.send_prompt(prompt, category=category)
+                    logger.info(f"Found {len(articles_to_process)} new articles from {feed_key}.")
 
-                    if not ai_result_json:
-                        logger.error(f"AI processing failed for {source_url} after trying all models. Skipping article.")
-                        continue
+                    for article_data in articles_to_process:
+                        self.process_single_article(article_data, feed_config['category'])
 
-                    ai_result = json.loads(ai_result_json)
+                    logger.info(f"--- Finished processing for feed: {feed_key} ---")
 
-                    # Step 4: Generate Schema.org
-                    schema_ld = self.schema_generator.generate_news_article_schema(
-                        headline=ai_result['titulo_final'],
-                        summary=ai_result['meta_description'],
-                        image_url=extracted_data['metadata']['featured_image'],
-                        canonical_url=extracted_data['metadata']['canonical_url'],
-                        date_published=extracted_data['metadata']['published_time'],
-                        author_name=extracted_data['metadata']['author'],
-                        publisher_name=PIPELINE_CONFIG['publisher_name'],
-                        publisher_logo_url=PIPELINE_CONFIG['publisher_logo_url']
-                    )
-
-                    # Step 5: Assemble the final DTO
-                    final_dto = PublishedArticleDTO(
-                        source_url=source_url,
-                        canonical_url=extracted_data['metadata']['canonical_url'],
-                        title=ai_result['titulo_final'],
-                        summary=ai_result['meta_description'],
-                        slug=self.wordpress_publisher.slugify(ai_result['titulo_final']),
-                        featured_image=FeaturedImageDTO(url=extracted_data['metadata']['featured_image'], alt=ai_result['titulo_final']),
-                        content_html=ai_result['conteudo_final'],
-                        tags=ai_result['tags'],
-                        category=ai_result['categoria'],
-                        schema_json_ld=schema_ld,
-                        attribution=PIPELINE_CONFIG['attribution_policy'].format(domain=urlparse(source_url).netloc)
-                    )
-
-                    # Step 6: Publish to WordPress
-                    # self.wordpress_publisher.publish(final_dto) # This method needs to be adapted
-                    logger.info(f"Article '{final_dto.title}' is ready for publishing.")
-
-                logger.info(f"=== Cycle completed. Processed {len(articles_to_process)} articles. ===")
+                logger.info("=== Automation cycle completed. ===")
 
             except Exception as e:
                 logger.error(f"Error in automation cycle: {str(e)}", exc_info=True)
+
+    def process_single_article(self, article_dto: ExtractedArticleDTO, category: str):
+        """Processes a single article from extraction to publishing readiness."""
+        source_url = article_dto.source_url
+        logger.info(f"--- Processing URL: {source_url} ---")
+
+        # Step 2: Extract and sanitize content
+        extracted_data = self.content_extractor.extract(source_url)
+        if not extracted_data:
+            logger.error(f"Extraction failed for {source_url}, skipping.")
+            return
+
+        # Step 3: Rewrite with AI
+        wp_url = WORDPRESS_CONFIG.get('url', '')
+        parsed_url = urlparse(wp_url)
+        domain = f"{parsed_url.scheme}://{parsed_url.netloc}" if wp_url else ""
+
+        prompt = UNIVERSAL_PROMPT.format(
+            title=extracted_data.get('title') or "Sem título",
+            excerpt=extracted_data.get('summary') or "Sem resumo",
+            domain=domain,
+            content=extracted_data.get('content_html')
+        )
+        ai_result_json = self.ai_processor.send_prompt(prompt, category=category)
+
+        if not ai_result_json:
+            logger.error(f"AI processing failed for {source_url}. Skipping article.")
+            return
+
+        ai_result = json.loads(ai_result_json)
+
+        # Step 4: Generate Schema.org
+        schema_ld = self.schema_generator.generate_news_article_schema(
+            headline=ai_result['titulo_final'],
+            summary=ai_result['meta_description'],
+            image_url=extracted_data.get('featured_image'),
+            canonical_url=extracted_data.get('canonical_url'),
+            date_published=extracted_data.get('published_time'),
+            author_name=extracted_data.get('author'),
+            publisher_name=PIPELINE_CONFIG['publisher_name'],
+            publisher_logo_url=PIPELINE_CONFIG['publisher_logo_url']
+        )
+
+        # Step 5: Assemble the final DTO
+        final_dto = PublishedArticleDTO(
+            source_url=source_url,
+            canonical_url=extracted_data.get('canonical_url'),
+            title=ai_result['titulo_final'],
+            summary=ai_result['meta_description'],
+            slug=self.wordpress_publisher.slugify(ai_result['titulo_final']),
+            featured_image=FeaturedImageDTO(url=extracted_data.get('featured_image'), alt=ai_result['titulo_final']),
+            content_html=ai_result['conteudo_final'],
+            tags=ai_result['tags'],
+            category=ai_result['categoria'],
+            schema_json_ld=schema_ld,
+            attribution=PIPELINE_CONFIG['attribution_policy'].format(domain=urlparse(source_url).netloc)
+        )
+
+        # Step 6: Publish to WordPress (ou marcar como pronto para publicação)
+        # self.wordpress_publisher.publish(final_dto)
+        logger.info(f"Article '{final_dto.title}' is ready for publishing.")
 
     def cleanup_cycle(self):
         """Database cleanup cycle"""
