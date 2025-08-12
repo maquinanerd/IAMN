@@ -2,6 +2,8 @@ import logging
 import os
 import json
 from apscheduler.schedulers.background import BackgroundScheduler
+import re
+import unicodedata
 from pytz import timezone
 from urllib.parse import urlparse
 from services.rss_monitor import RSSMonitor
@@ -16,6 +18,16 @@ logger = logging.getLogger(__name__)
 
 # Reduz o ruído de logs do APScheduler durante o desenvolvimento
 logging.getLogger('apscheduler').setLevel(logging.WARNING)
+
+def slugify(value: str) -> str:
+    """
+    Normalizes string, converts to lowercase, removes non-alpha characters,
+    and converts spaces to hyphens. Handles unicode characters.
+    """
+    value = str(value)
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
+    value = re.sub(r'[^\w\s-]', '', value).strip().lower()
+    return re.sub(r'[-\s]+', '-', value)
 
 class ContentAutomationScheduler:
     def __init__(self):
@@ -190,7 +202,7 @@ class ContentAutomationScheduler:
             canonical_url=metadata.get('canonical_url'),
             title=ai_result['titulo_final'],
             summary=ai_result['meta_description'],
-            slug=self.wordpress_publisher.slugify(ai_result['titulo_final']),
+            slug=slugify(ai_result['titulo_final']),
             featured_image=FeaturedImageDTO(url=metadata.get('featured_image'), alt=ai_result['titulo_final']),
             content_html=ai_result['conteudo_final'],
             tags=ai_result['tags'],

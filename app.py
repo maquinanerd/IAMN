@@ -15,6 +15,11 @@ load_dotenv()
 # Create the app
 app = Flask(__name__)
 
+# Set debug mode from environment variable. This is crucial for the scheduler
+# to initialize correctly, especially with the reloader in debug mode.
+# For development, set FLASK_DEBUG=1 in your .env file.
+app.debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+
 app.secret_key = os.environ.get("SESSION_SECRET", "content-automation-secret-key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
@@ -54,4 +59,4 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
 
 # Adicionado para permitir a execução direta para desenvolvimento
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
