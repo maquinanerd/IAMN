@@ -72,6 +72,7 @@ WORDPRESS_CATEGORIES = {
 SCHEDULE_CONFIG = {
     'check_interval': 15,  # minutes
     'max_articles_per_feed': 3,  # Limite de artigos por fonte em cada ciclo
+    'api_call_delay': 5, # segundos para aguardar entre o processamento de artigos
     'cleanup_after_hours': 12
 }
 
@@ -83,73 +84,20 @@ PIPELINE_CONFIG = {
     'publisher_logo_url': 'https://www.maquinanerd.com.br/wp-content/uploads/2023/11/logo-maquina-nerd-400px.png'
 }
 
-# Universal Prompt for AI Processing
-UNIVERSAL_PROMPT = """
-Você é um jornalista digital especializado em cultura pop, cinema e séries, com experiência em otimização para Google News e SEO técnico. Sua tarefa é revisar e otimizar o conteúdo abaixo sem alterar o sentido original, aprimorando sua estrutura, legibilidade e potencial de ranqueamento.
+def _load_prompt_from_file(file_name: str) -> str:
+    """Loads a prompt from the 'prompts' directory."""
+    # Constrói o caminho para o arquivo de prompt de forma robusta
+    # __file__ é o caminho do arquivo atual (config.py)
+    # os.path.dirname(__file__) pega o diretório onde config.py está
+    # os.path.join junta as partes para formar o caminho completo
+    prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', file_name)
+    try:
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        # Log a warning or raise an exception if the prompt is critical
+        print(f"CRITICAL ERROR: Prompt file not found at {prompt_path}")
+        return "Error: Prompt file not found."
 
-✅ Diretrizes obrigatórias para otimização:
-
-**Título:**
-- Reescreva o título original tornando-o mais atrativo e claro.
-- Inclua palavras-chave relevantes para melhorar o SEO.
-- Mantenha foco no tema, sem clickbait exagerado.
-- ⚠️ IMPORTANTE: O título deve ser APENAS TEXTO PURO, sem HTML, tags ou formatação.
-- Não use <b>, <a>, <i>, <span> ou qualquer tag HTML no título.
-- O título será usado em meta tags, RSS feeds e Google News onde HTML causa erros.
-
-**Resumo (Excerpt):**
-- Reescreva o resumo para ser mais chamativo e informativo.
-- Foque em engajamento e performance nos resultados do Google News.
-
-**Conteúdo:**
-- Reestruture os parágrafos longos em blocos mais curtos e escaneáveis.
-- **Não resuma ou encurte o texto.** O objetivo é reestruturar e otimizar, mantendo toda a informação original. Apenas melhore a fluidez e a formatação.
-- ⚠️ IMPORTANTE: Envolva cada parágrafo individualmente com a tag HTML <p>. Exemplo: <p>Primeiro parágrafo.</p><p>Segundo parágrafo.</p>
-- Não use <br> para criar parágrafos.
-- Mantenha o tom jornalístico e objetivo.
-- Não altere o sentido da informação.
-
-**Negrito:**
-- Destaque os termos mais relevantes usando apenas a tag HTML <b>.
-- Ex: nomes de filmes, personagens, diretores, plataformas, datas, eventos.
-
-**Links internos:**
-- Baseando-se nas tags fornecidas, insira links internos usando a estrutura:
-  <a href="{domain}/tag/NOME-DA-TAG">Texto âncora</a>
-- Quando possível, aplique negrito combinado com link:
-  <b><a href="{domain}/tag/stranger-things">Stranger Things</a></b>
-
-⚠️ **Regras Técnicas:**
-- Use somente HTML puro: <b>, <a>.
-- Não utilize Markdown (**texto** ou [link](url)).
-- Não adicione informações novas que não estejam no texto original ou na mídia fornecida.
-- Utilize o conteúdo do campo Tags para decidir onde inserir links internos relevantes.
-
-🔽 **DADOS DISPONÍVEIS PARA OTIMIZAÇÃO**
-
-**Conteúdo original:**
-
-**Título:** {title}
-
-**Resumo (se disponível):** {excerpt}
-
-**Conteúdo:**
-{content}
-
-📤 **FORMATO DA RESPOSTA (obrigatório)**
-Responda APENAS em JSON no seguinte formato:
-
-{{
-  "titulo_final": "...",
-  "conteudo_final": "<p>...</p><p>...</p>",
-  "meta_description": "...",
-  "focus_keyword": "...",
-  "categoria": "...",
-  "obra_principal": "...",
-  "tags": ["...", "...", "..."],
-  "imagens": ["url1", "url2", "..."],
-  "youtube_links": ["link1", "link2", "..."],
-  "twitter_links": ["link1", "link2", "..."],
-  "threads_links": ["link1", "link2", "..."]
-}}
-"""
+# Universal Prompt for AI Processing, loaded from an external file
+UNIVERSAL_PROMPT = _load_prompt_from_file('universal_prompt.txt')

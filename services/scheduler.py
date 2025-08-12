@@ -153,11 +153,12 @@ class ContentAutomationScheduler:
 
                         for article_data in articles_to_process:
                             self.process_single_article(article_data, category)
-                            # Adiciona uma pausa para evitar atingir os limites de taxa da API (ex: 15 chamadas/minuto).
-                            # Uma pausa de 5 segundos permite no máximo 12 chamadas por minuto,
+                            # Adiciona uma pausa para evitar atingir os limites de taxa da API por minuto.
+                            # O valor é configurável em config.py.
                             # o que deve manter o uso dentro do limite da camada gratuita.
-                            logger.debug("Aguardando 5 segundos antes do próximo artigo...")
-                            time.sleep(5)
+                            delay = SCHEDULE_CONFIG.get('api_call_delay', 5)
+                            logger.debug(f"Aguardando {delay} segundos antes do próximo artigo...")
+                            time.sleep(delay)
                         logger.info(f"--- Finished processing for feed: {feed_key} ---")
 
                 logger.info("=== Automation cycle completed. ===")

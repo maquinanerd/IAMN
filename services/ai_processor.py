@@ -40,8 +40,8 @@ class AIProcessor:
                     client_opts = client_options_lib.ClientOptions(api_key=api_key)
                     service_client = GenerativeServiceClient(client_options=client_opts)
 
-                    self.clients[ai_type].append(service_client)
-                    logger.info(f"Initialized {ai_type} AI model #{i+1}")
+                    self.clients[ai_type].append((service_client, f"...{api_key[-4:]}"))
+                    logger.info(f"Initialized {ai_type} AI model #{i+1} (key ending in ...{api_key[-4:]})")
                 except Exception as e:
                     logger.error(f"Failed to initialize {ai_type} AI model #{i+1}: {str(e)}")
             if not self.clients[ai_type]:
@@ -71,10 +71,10 @@ class AIProcessor:
         # Iterate through clients starting from the round-robin index
         for i in range(num_clients):
             client_index = (start_index + i) % num_clients
-            client = clients_for_category[client_index]
+            client, partial_key = clients_for_category[client_index]
             ai_name = f"{ai_type}_model_#{client_index + 1}"
             
-            logger.info(f"Attempting to send prompt with {ai_name} (Attempt {i+1}/{num_clients} for this article)...")
+            logger.info(f"Attempting to send prompt with {ai_name} using key {partial_key} (Attempt {i+1}/{num_clients} for this article)...")
 
             try:
                 request = GenerateContentRequest(
