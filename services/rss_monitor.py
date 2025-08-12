@@ -1,57 +1,70 @@
-import feedparser
 import logging
-from extensions import db
+import feedparser
 from models import Article
-from config import RSS_FEEDS, USER_AGENT
+from dto import ExtractedArticleDTO
+from extensions import db
 
 logger = logging.getLogger(__name__)
 
 class RSSMonitor:
-    """
-    Monitors RSS feeds to find new article URLs that are not yet in the database.
-    """
-
-    def fetch_new_articles(self, limit=None):
+    def fetch_new_articles(self, feed_key: str, urls: list, limit: int) -> list[ExtractedArticleDTO]:
         """
-        Fetches new articles from all configured RSS feeds.
+        Busca novos artigos de uma lista de URLs de feed RSS para uma chave de feed específica,
+        evitando duplicatas que já existem no banco de dados.
 
         Args:
-            limit (int, optional): The maximum number of new articles to return.
-                                   If None, returns all new articles found.
+            feed_key: A chave identificadora do feed (ex: 'screenrant_filmes_tv').
+            urls: Uma lista de URLs de feed RSS para verificar.
+            limit: O número máximo de novos artigos a serem retornados.
 
         Returns:
-            list: A list of feedparser entry objects for new articles.
+            Uma lista de objetos ExtractedArticleDTO para os novos artigos encontrados.
         """
-        new_entries = []
-        # Query all existing URLs from the database at once for efficiency
-        urls_in_db = {row.original_url for row in db.session.query(Article.original_url).all()}
-        logger.info(f"Found {len(urls_in_db)} URLs in the database to check against.")
+        logger.info(f"[{feed_key}] Verificando novos artigos em {len(urls)} URL(s).")
+        new_articles_to_process = []
 
-        for feed_type, feed_url in RSS_FEEDS.items():
+        # Obtém todas as URLs de origem existentes do banco de dados para verificar duplicatas de forma eficiente.
+        # Usar um `set` para a verificação é muito mais rápido (O(1) em média).
+        existing_urls = {article.source_url for article in db.session.query(Article.source_url).all()}
+
+        for url in urls:
+            if len(new_articles_to_process) >= limit:
+                logger.info(f"[{feed_key}] Limite de {limit} artigos atingido. Parando a busca.")
+                break
+
             try:
-                logger.debug(f"Fetching feed: {feed_type} from {feed_url}")
-                feed = feedparser.parse(feed_url, agent=USER_AGENT)
-
+                feed = feedparser.parse(url)
                 if feed.bozo:
-                    logger.warning(f"Feed {feed_type} might be malformed. Bozo reason: {getattr(feed, 'bozo_exception', 'Unknown')}")
+                    # bozo é True se o feed não estiver bem formatado
+                    bozo_exception = feed.get("bozo_exception", "erro desconhecido")
+                    logger.warning(f"[{feed_key}] Feed mal formatado em {url}. Motivo: {bozo_exception}")
+                    continue
 
                 for entry in feed.entries:
-                    if limit is not None and len(new_entries) >= limit:
-                        logger.info(f"Reached fetch limit of {limit}. Stopping feed processing.")
-                        return new_entries
+                    if len(new_articles_to_process) >= limit:
+                        break
 
-                    if hasattr(entry, 'link') and entry.link not in urls_in_db:
-                        entry.feed_type = feed_type  # Add feed_type to the entry for later use
-                        new_entries.append(entry)
-                        urls_in_db.add(entry.link)  # Avoid adding duplicates from other feeds in the same run
-                        logger.info(f"Found new article: '{entry.title}' from {feed_type}")
+                    article_url = entry.get("link")
+                    if not article_url:
+                        logger.warning(f"[{feed_key}] Entrada do feed sem 'link'. Título: {entry.get('title', 'N/A')}")
+                        continue
+
+                    if article_url not in existing_urls:
+                        logger.info(f"[{feed_key}] Novo artigo encontrado: {entry.get('title', article_url)}")
+                        # Cria um DTO com a URL de origem para a próxima etapa de processamento
+                        dto = ExtractedArticleDTO(source_url=article_url)
+                        new_articles_to_process.append(dto)
+                        existing_urls.add(article_url)  # Adiciona ao set para evitar duplicatas na mesma execução
 
             except Exception as e:
-                logger.error(f"Error fetching or parsing feed {feed_type}: {e}", exc_info=True)
+                logger.error(f"[{feed_key}] Falha ao processar o feed RSS em {url}. Erro: {e}", exc_info=True)
 
-        return new_entries
+        # Garante que não excedemos o limite, caso o último feed tenha muitos artigos novos.
+        return new_articles_to_process[:limit]
 
     def cleanup_old_articles(self):
-        """Placeholder for the cleanup function called by the scheduler."""
-        logger.info("Cleanup function in RSSMonitor called. No specific action implemented.")
+        """Executa a limpeza de artigos antigos no banco de dados."""
+        logger.info("Executando limpeza de artigos antigos...")
+        # A lógica de limpeza real pode ser adicionada aqui, como remover artigos com falha há mais de X dias.
         pass
+

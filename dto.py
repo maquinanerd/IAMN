@@ -1,32 +1,31 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+@dataclass
+class ExtractedArticleDTO:
+    """
+    Data Transfer Object para um artigo recém-encontrado no feed RSS.
+    Nesta fase inicial, carrega apenas a URL de origem.
+    """
+    source_url: str
 
 @dataclass
 class FeaturedImageDTO:
-    """DTO for a featured image."""
-    url: str
+    """DTO para a imagem de destaque de um artigo."""
+    url: Optional[str]
     alt: str
-
-
-@dataclass
-class ExtractedArticleDTO:
-    """DTO for a raw article fetched from an RSS feed, ready for processing."""
-    source_url: str
-    feed_key: str
-
 
 @dataclass
 class PublishedArticleDTO:
-    """DTO for a fully processed article ready for publishing."""
+    """DTO contendo todos os dados finais prontos para publicação no WordPress."""
     source_url: str
+    canonical_url: Optional[str]
     title: str
-    slug: str
-    content_html: str
     summary: str
-    category: str
-    tags: List[str]
+    slug: str
     featured_image: FeaturedImageDTO
+    content_html: str
+    tags: List[str]
+    category: str
     schema_json_ld: str
     attribution: str
-    canonical_url: Optional[str] = None
