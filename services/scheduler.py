@@ -235,7 +235,7 @@ class ContentAutomationScheduler:
 
     def cleanup_cycle(self):
         """Database cleanup cycle"""
--*,*/      # Adicionado para garantir que o ciclo de limpeza tenha acesso ao contexto da aplicação.
+        # Adicionado para garantir que o ciclo de limpeza tenha acesso ao contexto da aplicação.
         with self.app.app_context():
             try:
                 logger.info("Starting cleanup cycle")

@@ -49,8 +49,9 @@ class AIProcessor:
 
     def send_prompt(self, prompt: str, category: str) -> str | None:
         """
-        Sends a prompt to the appropriate AI model for the given category,
-        using a round-robin approach to cycle through available API keys.
+        Sends a prompt to the appropriate AI model for the given category.
+        It uses a round-robin approach to select the starting API key and
+        cycles through the rest if the initial one fails.
         Returns the AI's response as a JSON string, or None on failure.
         """
         ai_type = category
@@ -60,39 +61,48 @@ class AIProcessor:
             logger.error(f"No AI clients configured or initialized for category: '{ai_type}'")
             return None
 
-        # Round-robin logic
         num_clients = len(clients_for_category)
-        client_index = self.client_counters[ai_type] % num_clients
-        client = clients_for_category[client_index]
+        start_index = self.client_counters[ai_type] % num_clients
         
-        # Increment counter for the next call
+        # Increment counter for the next call to start with a different key
         self.client_counters[ai_type] += 1
 
-        ai_name = f"{ai_type}_model_#{client_index + 1}"
-        logger.info(f"Attempting to send prompt with {ai_name} (Round-robin index: {client_index})...")
-
-        try:
-            request = GenerateContentRequest(
-                model="models/gemini-1.5-flash",
-                contents=[Content(parts=[Part(text=prompt)])],
-                generation_config=GenerationConfig(
-                    response_mime_type="application/json"
-                )
-            )
-            response = client.generate_content(request=request)
-
-            if response.candidates and response.candidates[0].content.parts:
-                response_text = response.candidates[0].content.parts[0].text
-                logger.info(f"Successfully received response from {ai_name}.")
-                self.last_used_times[ai_type] = datetime.now()
-                return response_text
+        last_error = "Unknown AI processing error."
+        # Iterate through clients starting from the round-robin index
+        for i in range(num_clients):
+            client_index = (start_index + i) % num_clients
+            client = clients_for_category[client_index]
+            ai_name = f"{ai_type}_model_#{client_index + 1}"
             
-            logger.warning(f"Empty response from {ai_name}. The model may not have generated content.")
-            return None
+            logger.info(f"Attempting to send prompt with {ai_name} (Attempt {i+1}/{num_clients} for this article)...")
 
-        except Exception as e:
-            logger.error(f"API call to {ai_name} failed: {str(e)}")
-            return None
+            try:
+                request = GenerateContentRequest(
+                    model="models/gemini-1.5-flash",
+                    contents=[Content(parts=[Part(text=prompt)])],
+                    generation_config=GenerationConfig(
+                        response_mime_type="application/json"
+                    )
+                )
+                response = client.generate_content(request=request)
+
+                if response.candidates and response.candidates[0].content.parts:
+                    response_text = response.candidates[0].content.parts[0].text
+                    logger.info(f"Successfully received response from {ai_name}.")
+                    self.last_used_times[ai_type] = datetime.now()
+                    return response_text
+                
+                last_error = f"Empty response from {ai_name}"
+                logger.warning(f"{last_error}. The model may not have generated content. Trying next model if available.")
+                continue
+
+            except Exception as e:
+                last_error = f"API call to {ai_name} failed: {str(e)}"
+                logger.warning(f"{last_error}. Trying next model if available.")
+                continue
+
+        logger.error(f"All AI clients for category '{ai_type}' failed. Last error: {last_error}")
+        return None
 
     def get_ai_status(self):
         """Get status of all AIs"""
