@@ -116,7 +116,9 @@ class ContentAutomationScheduler:
                     logger.info(f"--- Starting processing for feed: {feed_key} ---")
 
                     # Step 1: Fetch new articles for the current feed in the pipeline
-                    articles_to_process = self.rss_monitor.fetch_new_articles_from_source(
+                    # NOTA: Assumindo que o nome correto do método em RSSMonitor é 'fetch_new_articles'.
+                    # Este método deve aceitar os argumentos feed_key, urls e limit.
+                    articles_to_process = self.rss_monitor.fetch_new_articles(
                         feed_key=feed_key,
                         urls=feed_config['urls'],
                         limit=SCHEDULE_CONFIG.get('max_articles_per_feed', 3)
