@@ -1,5 +1,7 @@
 import json
 import logging
+import re
+import time
 from datetime import datetime
 # Usaremos o cliente de serviço de baixo nível para gerenciar chaves de API individuais
 from google.ai.generativelanguage_v1beta.services.generative_service import \
@@ -97,7 +99,20 @@ class AIProcessor:
                 continue
 
             except Exception as e:
-                last_error = f"API call to {ai_name} failed: {str(e)}"
+                error_str = str(e)
+                last_error = f"API call to {ai_name} failed: {error_str}"
+
+                # Check for rate limit error and respect retry_delay if present
+                if "429" in error_str and "exceeded your current quota" in error_str:
+                    match = re.search(r"retry_delay {\s*seconds: (\d+)\s*}", error_str)
+                    if match:
+                        delay = int(match.group(1))
+                        # Add a small buffer and cap the delay to avoid excessive waiting
+                        sleep_time = min(delay + 2, 60) 
+                        logger.warning(f"Rate limit hit for key {partial_key}. Respecting retry_delay and sleeping for {sleep_time} seconds before next attempt.")
+                        time.sleep(sleep_time)
+                        continue  # Continue to the next key after sleeping
+                
                 logger.warning(f"{last_error}. Trying next model if available.")
                 continue
 

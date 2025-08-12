@@ -84,20 +84,28 @@ PIPELINE_CONFIG = {
     'publisher_logo_url': 'https://www.maquinanerd.com.br/wp-content/uploads/2023/11/logo-maquina-nerd-400px.png'
 }
 
+logger = logging.getLogger(__name__)
+
 def _load_prompt_from_file(file_name: str) -> str:
-    """Loads a prompt from the 'prompts' directory."""
-    # Constrói o caminho para o arquivo de prompt de forma robusta
-    # __file__ é o caminho do arquivo atual (config.py)
-    # os.path.dirname(__file__) pega o diretório onde config.py está
-    # os.path.join junta as partes para formar o caminho completo
-    prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', file_name)
+    """Loads a prompt from the 'prompts' directory, with a fallback to the root directory."""
+    base_dir = os.path.dirname(__file__)
+    
+    # 1. Try the 'prompts' subdirectory
+    prompt_path_in_subdir = os.path.join(base_dir, 'prompts', file_name)
+    # 2. Fallback to the project root directory
+    prompt_path_in_root = os.path.join(base_dir, file_name)
+
     try:
-        with open(prompt_path, 'r', encoding='utf-8') as f:
+        with open(prompt_path_in_subdir, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
-        # Log a warning or raise an exception if the prompt is critical
-        print(f"CRITICAL ERROR: Prompt file not found at {prompt_path}")
-        return "Error: Prompt file not found."
+        try:
+            with open(prompt_path_in_root, 'r', encoding='utf-8') as f:
+                logger.info(f"Prompt file '{file_name}' not found in 'prompts/' directory, using file from project root.")
+                return f.read()
+        except FileNotFoundError:
+            logger.critical(f"CRITICAL ERROR: Prompt file '{file_name}' not found in 'prompts/' or project root directory.")
+            return "Error: Prompt file not found."
 
 # Universal Prompt for AI Processing, loaded from an external file
 UNIVERSAL_PROMPT = _load_prompt_from_file('universal_prompt.txt')
