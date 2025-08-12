@@ -1,4 +1,5 @@
 import os
+import logging
 
 # Definição da ordem de execução do pipeline
 PIPELINE_ORDER = [
