@@ -1,18 +1,12 @@
 import json
 import logging
-import time
-import re
-from datetime import datetime
-import google.generativeai as genai
 # Usaremos o cliente de serviço de baixo nível para gerenciar chaves de API individuais
 from google.ai.generativelanguage_v1beta.services.generative_service import \
     GenerativeServiceClient
 from google.api_core import client_options as client_options_lib
 # Tipos necessários para construir a requisição de baixo nível
 from google.ai.generativelanguage_v1beta.types import (Content, Part, GenerationConfig, GenerateContentRequest)
-from extensions import db
-from models import Article, ProcessingLog, ExtractedMedia
-from config import AI_CONFIG, UNIVERSAL_PROMPT
+from config import AI_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -49,188 +43,50 @@ class AIProcessor:
             if not self.clients[ai_type]:
                 logger.warning(f"No valid API keys found or initialized for AI type: {ai_type}")
 
-    def process_pending_articles(self, max_articles=3):
-        """Process pending articles using appropriate AI"""
-        pending_articles = Article.query.filter_by(status='pending').limit(max_articles).all()
+    def send_prompt(self, prompt: str, category: str) -> str | None:
+        """
+        Envia um prompt para o modelo de IA apropriado para a categoria fornecida.
+        Tenta o modelo primário primeiro, depois recorre aos backups, se disponíveis.
+        Retorna a resposta da IA como uma string JSON ou None em caso de falha.
+        """
+        ai_type = category  # O agendador passa a categoria (ex: 'movies') que mapeia para o tipo de IA.
 
-        processed_count = 0
-        for article in pending_articles:
-            try:
-                start_time = time.time()
-                article.status = 'processing'
-                db.session.commit()
-
-                # Determine which AI to use based on feed type (e.g., 'movies_screenrant' -> 'movies')
-                ai_type = article.feed_type.split('_')[0]
-
-                result, error_msg = self._process_with_ai(article, ai_type)
-
-                if result:
-                    # Update article with AI results
-                    article.titulo_final = re.sub(r'</?strong>', '', result.get('titulo_final', ''))
-                    article.conteudo_final = self._correct_paragraphs(result.get('conteudo_final'))
-                    article.meta_description = result.get('meta_description', '')
-                    article.focus_keyword = result.get('focus_keyword')
-                    article.categoria = result.get('categoria')
-                    article.obra_principal = result.get('obra_principal')
-                    article.tags = json.dumps(result.get('tags', []))
-                    article.status = 'processed'
-
-                    # Salva as mídias extraídas pela IA
-                    self._save_extracted_media(article.id, result)
-
-                    article.processed_at = datetime.utcnow()
-                    article.processing_time = int(time.time() - start_time)
-
-                    self._log_processing(article.id, 'AI_PROCESSING', 'Successfully processed article', 
-                                       article.ai_used, True)
-
-                    processed_count += 1
-                    logger.info(f"Successfully processed article: {article.original_title}")
-                else:
-                    article.status = 'failed'
-                    article.error_message = error_msg or 'AI processing failed without a specific error message.'
-                    self._log_processing(article.id, 'AI_PROCESSING', 'AI processing failed', 
-                                       article.ai_used or 'N/A', False)
-
-                db.session.commit()
-
-            except Exception as e:
-                logger.error(f"Error processing article {article.id}: {str(e)}")
-                article.status = 'failed'
-                article.error_message = str(e)
-                db.session.commit()
-
-        return processed_count
-
-    def _process_with_ai(self, article, ai_type):
-        """Process article with specified AI type, iterating through available clients on failure."""
         if not self.clients.get(ai_type):
-            error_msg = f"No AI clients configured for type: {ai_type}"
-            logger.error(error_msg)
-            return None, error_msg
+            logger.error(f"Nenhum cliente de IA configurado ou inicializado para a categoria: '{ai_type}'")
+            return None
 
-        last_error = "Unknown AI processing error."
+        last_error = "Erro desconhecido no processamento da IA."
         for i, client in enumerate(self.clients[ai_type]):
             ai_name = f"{ai_type}_model_#{i+1}"
-            logger.info(f"Attempting to process article {article.id} with {ai_name}")
-            result, last_error = self._call_ai(client, article, ai_name)
-            if result:
-                article.ai_used = ai_name
-                return result, None
-            logger.warning(f"AI call failed with {ai_name}: {last_error}. Trying next model if available.")
+            logger.info(f"Tentando enviar prompt com {ai_name}...")
 
-        final_error_msg = f"All AI clients for type '{ai_type}' failed. Last error: {last_error}"
-        logger.error(f"{final_error_msg} for article {article.id}")
-        return None, final_error_msg
-
-    def _call_ai(self, client: GenerativeServiceClient, article, ai_name):
-        """
-        Make actual AI call using the low-level GenerativeServiceClient.
-        Returns a tuple: (result_dict, error_message_string).
-        """
-        try:
-            prompt = UNIVERSAL_PROMPT.format(
-                titulo=article.original_title,
-                conteudo=article.original_content,
-                # Adicione outros campos se o prompt precisar, ex: domain, tags_text
-            )
-
-            # Construir a requisição para o GenerativeServiceClient
-            request = GenerateContentRequest(
-                model="models/gemini-1.5-flash",  # O nome completo do modelo é necessário aqui
-                contents=[Content(parts=[Part(text=prompt)])],
-                generation_config=GenerationConfig(
-                    response_mime_type="application/json"
+            try:
+                # Constrói a requisição para o GenerativeServiceClient
+                request = GenerateContentRequest(
+                    model="models/gemini-1.5-flash",  # O nome completo do modelo é necessário aqui
+                    contents=[Content(parts=[Part(text=prompt)])],
+                    generation_config=GenerationConfig(
+                        response_mime_type="application/json"
+                    )
                 )
-            )
+                response = client.generate_content(request=request)
 
-            response = client.generate_content(request=request)
+                if response.candidates and response.candidates[0].content.parts:
+                    response_text = response.candidates[0].content.parts[0].text
+                    logger.info(f"Resposta recebida com sucesso de {ai_name}.")
+                    return response_text
+                else:
+                    last_error = f"Resposta vazia de {ai_name}"
+                    logger.warning(f"{last_error}. Tentando próximo modelo, se disponível.")
+                    continue
 
-            if response.candidates and response.candidates[0].content.parts:
-                response_text = response.candidates[0].content.parts[0].text
-                try:
-                    result = json.loads(response_text)
-                    required_fields = ['titulo_final', 'conteudo_final', 'meta_description', 
-                                     'focus_keyword', 'categoria', 'obra_principal', 'tags',
-                                     'imagens', 'youtube_links', 'twitter_links', 'threads_links']
-                    if all(field in result for field in required_fields):
-                        return result, None
-                    else:
-                        missing_fields = [f for f in required_fields if f not in result]
-                        error_msg = f"Missing required fields: {', '.join(missing_fields)}"
-                        logger.error(f"{error_msg} from {ai_name}")
-                        return None, error_msg
+            except Exception as e:
+                last_error = f"Chamada de API para {ai_name} falhou: {str(e)}"
+                logger.warning(f"{last_error}. Tentando próximo modelo, se disponível.")
+                continue
 
-                except json.JSONDecodeError as e:
-                    error_msg = f"Invalid JSON response: {e}. Response text: {response_text[:200]}..."
-                    logger.error(f"{error_msg} from {ai_name}")
-                    return None, error_msg
-            else:
-                error_msg = f"Empty response from {ai_name}"
-                logger.error(error_msg)
-                return None, error_msg
-
-        except Exception as e:
-            error_msg = f"API call failed for {ai_name}: {str(e)}"
-            logger.error(error_msg)
-            return None, error_msg
-
-    def _correct_paragraphs(self, content):
-        """Ensure content has proper paragraph structure and format"""
-        if not content:
-            return content
-
-        # Replace ** with <strong> tags
-        content = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', content)
-
-        # Split into sentences and regroup into paragraphs
-        sentences = re.split(r'[.!?]+', content)
-        sentences = [s.strip() for s in sentences if s.strip()]
-
-        if len(sentences) < 5:
-            return content  # Keep as is if too short
-
-        # Group sentences into paragraphs (3 sentences per paragraph)
-        paragraphs = []
-        for i in range(0, len(sentences), 3):
-            paragraph_sentences = sentences[i:i+3]
-            if paragraph_sentences:
-                paragraph = '. '.join(paragraph_sentences)
-                if not paragraph.endswith('.'):
-                    paragraph += '.'
-                paragraphs.append(paragraph)
-
-        return '\n\n'.join(paragraphs)
-
-    def _log_processing(self, article_id, action, message, ai_used, success):
-        """Log processing actions. Adds the log to the session but does not commit."""
-        try:
-            log = ProcessingLog(
-                article_id=article_id,
-                action=action,
-                message=message,
-                ai_used=ai_used,
-                success=success
-            )
-            db.session.add(log)
-        except Exception as e:
-            logger.error(f"Error creating processing log object for article {article_id}: {str(e)}")
-
-    def _save_extracted_media(self, article_id, result_json):
-        """Saves extracted media URLs to the database."""
-        media_types = {
-            'image': result_json.get('imagens', []),
-            'youtube': result_json.get('youtube_links', []),
-            'twitter': result_json.get('twitter_links', []),
-            'threads': result_json.get('threads_links', []),
-        }
-        for media_type, urls in media_types.items():
-            if not isinstance(urls, list): continue
-            for url in urls:
-                if not ExtractedMedia.query.filter_by(article_id=article_id, url=url).first():
-                    media_entry = ExtractedMedia(article_id=article_id, media_type=media_type, url=url)
-                    db.session.add(media_entry)
+        logger.error(f"Todos os clientes de IA para a categoria '{ai_type}' falharam. Último erro: {last_error}")
+        return None
 
     def get_ai_status(self):
         """Get status of all AIs"""
@@ -241,11 +97,3 @@ class AIProcessor:
                 'last_used': self._get_last_used_time(ai_type)
             }
         return status
-
-    def _get_last_used_time(self, ai_type):
-        """Get last time an AI was used"""
-        last_log = ProcessingLog.query.filter(
-            ProcessingLog.ai_used.like(f"{ai_type}%")
-        ).order_by(ProcessingLog.created_at.desc()).first()
-
-        return last_log.created_at.isoformat() if last_log else None

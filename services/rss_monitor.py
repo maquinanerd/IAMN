@@ -25,7 +25,9 @@ class RSSMonitor:
 
         # Obtém todas as URLs de origem existentes do banco de dados para verificar duplicatas de forma eficiente.
         # Usar um `set` para a verificação é muito mais rápido (O(1) em média).
-        existing_urls = {article.source_url for article in db.session.query(Article.source_url).all()}
+        # A consulta retorna uma lista de tuplas de um elemento, ex: [('url1',), ('url2',)].
+        # A sintaxe {url for (url,) in ...} desempacota cada tupla para extrair a string da URL.
+        existing_urls = {url for (url,) in db.session.query(Article.source_url).all()}
 
         for url in urls:
             if len(new_articles_to_process) >= limit:
@@ -67,4 +69,3 @@ class RSSMonitor:
         logger.info("Executando limpeza de artigos antigos...")
         # A lógica de limpeza real pode ser adicionada aqui, como remover artigos com falha há mais de X dias.
         pass
-
