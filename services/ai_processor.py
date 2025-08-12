@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 # Usaremos o cliente de serviço de baixo nível para gerenciar chaves de API individuais
 from google.ai.generativelanguage_v1beta.services.generative_service import \
     GenerativeServiceClient
@@ -23,13 +24,14 @@ class AIProcessor:
         if not self._initialized:
             self.clients = {}
             self.client_counters = {}
+            self.last_used_times = {}
             self._init_clients()
             AIProcessor._initialized = True
 
     def _init_clients(self):
         """Initialize Gemini models for each AI configuration."""
         for ai_type, api_keys in AI_CONFIG.items():
-            self.client_counters[ai_type] = 
+            self.client_counters[ai_type] = 0
             self.clients[ai_type] = []
             for i, api_key in enumerate(filter(None, api_keys)):  # filter(None, ...) removes empty keys
                 try:
@@ -47,55 +49,58 @@ class AIProcessor:
 
     def send_prompt(self, prompt: str, category: str) -> str | None:
         """
-        Envia um prompt para o modelo de IA apropriado para a categoria fornecida.
-        Tenta o modelo primário primeiro, depois recorre aos backups, se disponíveis.
-        Retorna a resposta da IA como uma string JSON ou None em caso de falha.
+        Sends a prompt to the appropriate AI model for the given category,
+        using a round-robin approach to cycle through available API keys.
+        Returns the AI's response as a JSON string, or None on failure.
         """
-        ai_type = category  # O agendador passa a categoria (ex: 'movies') que mapeia para o tipo de IA.
+        ai_type = category
 
-        if not self.clients.get(ai_type):
-            logger.error(f"Nenhum cliente de IA configurado ou inicializado para a categoria: '{ai_type}'")
+        clients_for_category = self.clients.get(ai_type)
+        if not clients_for_category:
+            logger.error(f"No AI clients configured or initialized for category: '{ai_type}'")
             return None
 
-        last_error = "Erro desconhecido no processamento da IA."
-        for i, client in enumerate(self.clients[ai_type]):
-            ai_name = f"{ai_type}_model_#{i+1}"
-            logger.info(f"Tentando enviar prompt com {ai_name}...")
+        # Round-robin logic
+        num_clients = len(clients_for_category)
+        client_index = self.client_counters[ai_type] % num_clients
+        client = clients_for_category[client_index]
+        
+        # Increment counter for the next call
+        self.client_counters[ai_type] += 1
 
-            try:
-                # Constrói a requisição para o GenerativeServiceClient
-                request = GenerateContentRequest(
-                    model="models/gemini-1.5-flash",  # O nome completo do modelo é necessário aqui
-                    contents=[Content(parts=[Part(text=prompt)])],
-                    generation_config=GenerationConfig(
-                        response_mime_type="application/json"
-                    )
+        ai_name = f"{ai_type}_model_#{client_index + 1}"
+        logger.info(f"Attempting to send prompt with {ai_name} (Round-robin index: {client_index})...")
+
+        try:
+            request = GenerateContentRequest(
+                model="models/gemini-1.5-flash",
+                contents=[Content(parts=[Part(text=prompt)])],
+                generation_config=GenerationConfig(
+                    response_mime_type="application/json"
                 )
-                response = client.generate_content(request=request)
+            )
+            response = client.generate_content(request=request)
 
-                if response.candidates and response.candidates[0].content.parts:
-                    response_text = response.candidates[0].content.parts[0].text
-                    logger.info(f"Resposta recebida com sucesso de {ai_name}.")
-                    return response_text
-                else:
-                    last_error = f"Resposta vazia de {ai_name}"
-                    logger.warning(f"{last_error}. Tentando próximo modelo, se disponível.")
-                    continue
+            if response.candidates and response.candidates[0].content.parts:
+                response_text = response.candidates[0].content.parts[0].text
+                logger.info(f"Successfully received response from {ai_name}.")
+                self.last_used_times[ai_type] = datetime.now()
+                return response_text
+            
+            logger.warning(f"Empty response from {ai_name}. The model may not have generated content.")
+            return None
 
-            except Exception as e:
-                last_error = f"Chamada de API para {ai_name} falhou: {str(e)}"
-                logger.warning(f"{last_error}. Tentando próximo modelo, se disponível.")
-                continue
-
-        logger.error(f"Todos os clientes de IA para a categoria '{ai_type}' falharam. Último erro: {last_error}")
-        return None
+        except Exception as e:
+            logger.error(f"API call to {ai_name} failed: {str(e)}")
+            return None
 
     def get_ai_status(self):
         """Get status of all AIs"""
         status = {}
         for ai_type in AI_CONFIG.keys():
+            last_used = self.last_used_times.get(ai_type)
             status[ai_type] = {
                 'available_keys': len(self.clients.get(ai_type, [])),
-                'last_used': self._get_last_used_time(ai_type)
+                'last_used': last_used.isoformat() if last_used else "Never"
             }
         return status

@@ -235,17 +235,19 @@ class ContentAutomationScheduler:
 
     def cleanup_cycle(self):
         """Database cleanup cycle"""
+-*,*/      # Adicionado para garantir que o ciclo de limpeza tenha acesso ao contexto da aplicação.
         with self.app.app_context():
             try:
                 logger.info("Starting cleanup cycle")
                 self.rss_monitor.cleanup_old_articles()
                 logger.info("Cleanup cycle completed")
             except Exception as e:
-                logger.error(f"Error in cleanup cycle: {str(e)}")
+                logger.error(f"Error in cleanup cycle: {str(e)}", exc_info=True)
 
     def execute_now(self):
         """Execute automation cycle immediately"""
         logger.info("Manual execution triggered")
+        # Adicionado para garantir que a execução manual tenha acesso ao contexto da aplicação.
         with self.app.app_context():
             self.automation_cycle()
 
