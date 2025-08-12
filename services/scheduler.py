@@ -150,10 +150,13 @@ class ContentAutomationScheduler:
         wp_url = WORDPRESS_CONFIG.get('url', '')
         parsed_url = urlparse(wp_url)
         domain = f"{parsed_url.scheme}://{parsed_url.netloc}" if wp_url else ""
+        
+        # Acessa os metadados corretamente dentro do dicionário aninhado
+        metadata = extracted_data.get('metadata', {})
 
         prompt = UNIVERSAL_PROMPT.format(
-            title=extracted_data.get('title') or "Sem título",
-            excerpt=extracted_data.get('summary') or "Sem resumo",
+            title=metadata.get('title') or "Sem título",
+            excerpt=metadata.get('summary') or "Sem resumo",
             domain=domain,
             content=extracted_data.get('content_html')
         )
@@ -162,17 +165,21 @@ class ContentAutomationScheduler:
         if not ai_result_json:
             logger.error(f"AI processing failed for {source_url}. Skipping article.")
             return
-
-        ai_result = json.loads(ai_result_json)
+        
+        try:
+            ai_result = json.loads(ai_result_json)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to decode JSON from AI for {source_url}. Response was: {ai_result_json[:200]}...")
+            return
 
         # Step 4: Generate Schema.org
         schema_ld = self.schema_generator.generate_news_article_schema(
             headline=ai_result['titulo_final'],
             summary=ai_result['meta_description'],
-            image_url=extracted_data.get('featured_image'),
-            canonical_url=extracted_data.get('canonical_url'),
-            date_published=extracted_data.get('published_time'),
-            author_name=extracted_data.get('author'),
+            image_url=metadata.get('featured_image'),
+            canonical_url=metadata.get('canonical_url'),
+            date_published=metadata.get('published_time'),
+            author_name=metadata.get('author'),
             publisher_name=PIPELINE_CONFIG['publisher_name'],
             publisher_logo_url=PIPELINE_CONFIG['publisher_logo_url']
         )
@@ -180,11 +187,11 @@ class ContentAutomationScheduler:
         # Step 5: Assemble the final DTO
         final_dto = PublishedArticleDTO(
             source_url=source_url,
-            canonical_url=extracted_data.get('canonical_url'),
+            canonical_url=metadata.get('canonical_url'),
             title=ai_result['titulo_final'],
             summary=ai_result['meta_description'],
             slug=self.wordpress_publisher.slugify(ai_result['titulo_final']),
-            featured_image=FeaturedImageDTO(url=extracted_data.get('featured_image'), alt=ai_result['titulo_final']),
+            featured_image=FeaturedImageDTO(url=metadata.get('featured_image'), alt=ai_result['titulo_final']),
             content_html=ai_result['conteudo_final'],
             tags=ai_result['tags'],
             category=ai_result['categoria'],

@@ -1,65 +1,62 @@
-from extensions import db
 from datetime import datetime
-from sqlalchemy import Integer, String, Text, DateTime, Boolean
+from extensions import db
 
 class Article(db.Model):
     __tablename__ = 'articles'
+    id = db.Column(db.Integer, primary_key=True)
     
-    id = db.Column(Integer, primary_key=True)
-    original_url = db.Column(String(500), unique=True, nullable=False)
-    original_title = db.Column(String(500), nullable=False)
-    original_content = db.Column(Text, nullable=False)
+    # Core identifier and status
+    source_url = db.Column(db.String(1024), nullable=False, unique=True, index=True)
+    status = db.Column(db.String(50), nullable=False, default='pending', index=True) # e.g., pending, extracting, processing, published, failed
     
-    # AI processed content
-    titulo_final = db.Column(String(500))
-    conteudo_final = db.Column(Text)
-    meta_description = db.Column(String(300))
-    focus_keyword = db.Column(String(100))
-    categoria = db.Column(String(100))
-    obra_principal = db.Column(String(200))
-    tags = db.Column(Text)  # JSON string
+    # Data from source
+    original_title = db.Column(db.String(512))
+    original_content = db.Column(db.Text)
+    feed_type = db.Column(db.String(100), index=True) # e.g., 'screenrant_filmes_tv'
     
-    # WordPress data
-    wordpress_id = db.Column(Integer)
-    wordpress_url = db.Column(String(500))
+    # Data from AI processing
+    titulo_final = db.Column(db.String(512))
+    conteudo_final = db.Column(db.Text)
+    meta_description = db.Column(db.String(1024))
+    focus_keyword = db.Column(db.String(100))
+    categoria = db.Column(db.String(100))
+    obra_principal = db.Column(db.String(255))
+    tags = db.Column(db.Text)  # Storing as JSON string
     
-    # Featured image
-    featured_image_url = db.Column(String(500))
+    # WordPress publishing data
+    wordpress_id = db.Column(db.Integer)
+    wordpress_url = db.Column(db.String(1024))
     
-    # Metadata
-    feed_type = db.Column(String(50), nullable=False)
-    status = db.Column(String(50), default='pending')  # pending, processing, processed, published, failed
-    ai_used = db.Column(String(100))
-    processing_time = db.Column(Integer)  # seconds
-    error_message = db.Column(Text)
-    
-    # Timestamps
-    created_at = db.Column(DateTime, default=datetime.utcnow)
-    processed_at = db.Column(DateTime)
-    published_at = db.Column(DateTime)
+    # Timestamps and metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    extracted_at = db.Column(db.DateTime)
+    processed_at = db.Column(db.DateTime)
+    published_at = db.Column(db.DateTime)
+    processing_time = db.Column(db.Integer) # in seconds
+    ai_used = db.Column(db.String(100))
+    error_message = db.Column(db.Text)
+
+    logs = db.relationship('ProcessingLog', backref='article', lazy=True, cascade="all, delete-orphan")
+    media = db.relationship('ExtractedMedia', backref='article', lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f'<Article {self.id}: {self.original_title}>'
+        return f'<Article {self.id} - {self.original_title[:50] if self.original_title else "N/A"}>'
 
 class ProcessingLog(db.Model):
     __tablename__ = 'processing_logs'
-    
-    id = db.Column(Integer, primary_key=True)
-    article_id = db.Column(Integer, db.ForeignKey('articles.id'), nullable=True)
-    action = db.Column(String(100), nullable=False)
-    message = db.Column(Text)
-    ai_used = db.Column(String(100))
-    success = db.Column(Boolean, default=True)
-    created_at = db.Column(DateTime, default=datetime.utcnow)
-    
-    def __repr__(self):
-        return f'<ProcessingLog {self.id}: {self.action}>'
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.Integer, db.ForeignKey('articles.id'), nullable=False)
+    action = db.Column(db.String(100), nullable=False) # e.g., 'AI_PROCESSING', 'PUBLISHING'
+    message = db.Column(db.Text)
+    ai_used = db.Column(db.String(100))
+    success = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class ExtractedMedia(db.Model):
     __tablename__ = 'extracted_media'
-
-    id = db.Column(Integer, primary_key=True)
-    article_id = db.Column(Integer, db.ForeignKey('articles.id'), nullable=False)
-    media_type = db.Column(String(50), nullable=False)  # 'image', 'youtube', 'twitter', 'threads'
-    url = db.Column(String(2048), nullable=False)
-    created_at = db.Column(DateTime, default=datetime.utcnow)
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.Integer, db.ForeignKey('articles.id'), nullable=False)
+    media_type = db.Column(db.String(50)) # 'image', 'youtube', 'twitter', etc.
+    url = db.Column(db.String(1024), nullable=False)
+    status = db.Column(db.String(50), default='pending') # pending, downloaded, uploaded
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
