@@ -2,6 +2,7 @@ import logging
 import os
 import json
 from apscheduler.schedulers.background import BackgroundScheduler
+import time
 import re
 import unicodedata
 from pytz import timezone
@@ -53,6 +54,7 @@ class ContentAutomationScheduler:
         self.content_extractor = ContentExtractor()
         self.schema_generator = SchemaGenerator()
         self.wordpress_publisher = WordPressPublisher()
+        self.grouped_feeds = self._group_feeds_by_category()
         self.is_running = False
 
     def start(self):
@@ -110,6 +112,21 @@ class ContentAutomationScheduler:
             self.is_running = False
             logger.info("Content automation scheduler stopped")
 
+    def _group_feeds_by_category(self):
+        """Groups feed keys from PIPELINE_ORDER by their category."""
+        grouped = {}
+        for feed_key in PIPELINE_ORDER:
+            if feed_key in RSS_FEEDS:
+                feed_config = RSS_FEEDS[feed_key]
+                category = feed_config.get('category')
+                if not category:
+                    logger.warning(f"Feed '{feed_key}' has no category defined. Skipping.")
+                    continue
+                if category not in grouped:
+                    grouped[category] = []
+                grouped[category].append(feed_key)
+        return grouped
+
     def automation_cycle(self, limit: int = None):
         """
         Main automation cycle. Fetches, processes, and prepares articles for publishing.
@@ -119,28 +136,29 @@ class ContentAutomationScheduler:
             try:
                 logger.info("=== Starting automation cycle ===")
                 
-                for feed_key in PIPELINE_ORDER:
-                    if feed_key not in RSS_FEEDS:
-                        logger.warning(f"Feed key '{feed_key}' from PIPELINE_ORDER not found in RSS_FEEDS. Skipping.")
-                        continue
+                # Processa os feeds agrupados por categoria para melhor gerenciamento das chaves de API
+                for category, feed_keys in self.grouped_feeds.items():
+                    logger.info(f"=== Processing category: {category} ===")
+                    for feed_key in feed_keys:
+                        feed_config = RSS_FEEDS[feed_key]
+                        logger.info(f"--- Starting processing for feed: {feed_key} ---")
 
-                    feed_config = RSS_FEEDS[feed_key]
-                    logger.info(f"--- Starting processing for feed: {feed_key} ---")
+                        # Step 1: Fetch new articles for the current feed
+                        articles_to_process = self.rss_monitor.fetch_new_articles(
+                            feed_key=feed_key,
+                            urls=feed_config['urls'],
+                            limit=SCHEDULE_CONFIG.get('max_articles_per_feed', 3)
+                        )
+                        logger.info(f"Found {len(articles_to_process)} new articles from {feed_key}.")
 
-                    # Step 1: Fetch new articles for the current feed in the pipeline
-                    # NOTA: Assumindo que o nome correto do método em RSSMonitor é 'fetch_new_articles'.
-                    # Este método deve aceitar os argumentos feed_key, urls e limit.
-                    articles_to_process = self.rss_monitor.fetch_new_articles(
-                        feed_key=feed_key,
-                        urls=feed_config['urls'],
-                        limit=SCHEDULE_CONFIG.get('max_articles_per_feed', 3)
-                    )
-                    logger.info(f"Found {len(articles_to_process)} new articles from {feed_key}.")
-
-                    for article_data in articles_to_process:
-                        self.process_single_article(article_data, feed_config['category'])
-
-                    logger.info(f"--- Finished processing for feed: {feed_key} ---")
+                        for article_data in articles_to_process:
+                            self.process_single_article(article_data, category)
+                            # Adiciona uma pausa para evitar atingir os limites de taxa da API (ex: 15 chamadas/minuto).
+                            # Uma pausa de 5 segundos permite no máximo 12 chamadas por minuto,
+                            # o que deve manter o uso dentro do limite da camada gratuita.
+                            logger.debug("Aguardando 5 segundos antes do próximo artigo...")
+                            time.sleep(5)
+                        logger.info(f"--- Finished processing for feed: {feed_key} ---")
 
                 logger.info("=== Automation cycle completed. ===")
 

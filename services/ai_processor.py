@@ -22,12 +22,14 @@ class AIProcessor:
     def __init__(self):
         if not self._initialized:
             self.clients = {}
+            self.client_counters = {}
             self._init_clients()
             AIProcessor._initialized = True
 
     def _init_clients(self):
         """Initialize Gemini models for each AI configuration."""
         for ai_type, api_keys in AI_CONFIG.items():
+            self.client_counters[ai_type] = 
             self.clients[ai_type] = []
             for i, api_key in enumerate(filter(None, api_keys)):  # filter(None, ...) removes empty keys
                 try:
