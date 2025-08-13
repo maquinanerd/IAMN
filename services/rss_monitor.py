@@ -58,7 +58,7 @@ class RSSMonitor:
                     
                     if hasattr(entry, 'link') and entry.link not in existing_urls:
                         logger.info(f"[{feed_key}] Novo artigo encontrado: {entry.title}")
-                        dto = ExtractedArticleDTO(source_url=entry.link, title=entry.title)
+                        dto = ExtractedArticleDTO(source_url=entry.link)
                         new_articles.append(dto)
                         existing_urls.add(entry.link) # Avoid processing duplicates in the same run
 
