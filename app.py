@@ -1,5 +1,6 @@
 import logging
 import time
+import os
 from flask import Flask
 from dotenv import load_dotenv
 from extensions import db
@@ -17,9 +18,15 @@ def create_app():
     """Cria e configura uma instância da aplicação Flask."""
     app = Flask(__name__)
 
-    # Configuração do banco de dados (ajuste se necessário)
-    # Exemplo: app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-    # app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # Configuração do banco de dados.
+    # Prioriza a variável de ambiente DATABASE_URL (para PostgreSQL em produção)
+    # e usa um banco de dados SQLite local como fallback para desenvolvimento.
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///app.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+    }
 
     # Inicializa as extensões
     db.init_app(app)
