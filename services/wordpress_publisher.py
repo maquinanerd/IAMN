@@ -75,7 +75,7 @@ class WordPressPublisher:
                     timeout=30
                 )
 
-                if response.status_code == 201:
+                if response.status_code in [200, 201]:
                     post_data_response = response.json()
                     article.wordpress_id = post_data_response['id']
                     article.wordpress_url = post_data_response['link']
@@ -149,7 +149,7 @@ class WordPressPublisher:
                 timeout=30
             )
 
-            if response.status_code == 201:
+            if response.status_code in [200, 201]:
                 post_data_response = response.json()
                 article.wordpress_id = post_data_response['id']
                 article.wordpress_url = post_data_response['link']
@@ -212,7 +212,7 @@ class WordPressPublisher:
                 timeout=30
             )
 
-            if upload_response.status_code == 201:
+            if upload_response.status_code in [200, 201]:
                 media_data = upload_response.json()
                 logger.info(f"Successfully uploaded featured image with ID: {media_data['id']}")
                 return media_data['id']
