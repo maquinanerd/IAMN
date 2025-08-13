@@ -18,12 +18,16 @@ class Article(db.Model):
     titulo_final = db.Column(db.String(512))
     conteudo_final = db.Column(db.Text)
     meta_description = db.Column(db.String(1024))
+    slug = db.Column(db.String(512), index=True)
     focus_keyword = db.Column(db.String(100))
     categoria = db.Column(db.String(100))
     obra_principal = db.Column(db.String(255))
     tags = db.Column(db.Text)  # Storing as JSON string
+    schema_json_ld = db.Column(db.Text)
+    attribution = db.Column(db.Text)
     
     # WordPress publishing data
+    featured_image_url = db.Column(db.String(1024))
     wordpress_id = db.Column(db.Integer)
     wordpress_url = db.Column(db.String(1024))
     
