@@ -1,9 +1,14 @@
 import logging
 import time
 from flask import Flask
+from dotenv import load_dotenv
 from extensions import db
 from config import WORDPRESS_CONFIG
 from services.scheduler import init_scheduler, get_scheduler
+
+# Carrega as variáveis de ambiente de um arquivo .env no início da aplicação.
+# Isso é útil para o desenvolvimento local, para não expor chaves no código.
+load_dotenv()
 
 # Configuração básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

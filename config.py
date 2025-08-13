@@ -40,17 +40,18 @@ USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 # AI Configuration with primary and backup keys.
 # The system will always try the first key in the list. If it fails, it will try the next one (backup).
 # Removido o '.get()' para falhar explicitamente se as variáveis não estiverem definidas.
+# Alterado para os.getenv() para evitar que a aplicação quebre se uma variável de ambiente não estiver definida.
 AI_CONFIG = {
     'movies': [
-        os.environ['GEMINI_MOVIES_1'],
-        os.environ['GEMINI_MOVIES_2'],
+        os.getenv('GEMINI_MOVIES_1'),
+        os.getenv('GEMINI_MOVIES_2'),
     ],
     'series': [
-        os.environ['GEMINI_SERIES_1'],
-        os.environ['GEMINI_SERIES_2'],
+        os.getenv('GEMINI_SERIES_1'),
+        os.getenv('GEMINI_SERIES_2'),
     ],
     'games': [
-        os.environ['GEMINI_GAMES_1'],
+        os.getenv('GEMINI_GAMES_1'),
     ],
 }
 
