@@ -198,10 +198,18 @@ class ContentAutomationScheduler:
             logger.error(f"AI processing failed for {source_url}. Skipping article.")
             return
         
+        # The AI can sometimes wrap the JSON in markdown or add extra text.
+        # This regex extracts the main JSON block to prevent parsing errors.
+        match = re.search(r'\{.*\}', ai_result_json, re.DOTALL)
+        if not match:
+            logger.error(f"Could not find a valid JSON object in the AI's response for {source_url}. Full response: {ai_result_json}")
+            return
+        cleaned_json = match.group(0)
+        
         try:
-            ai_result = json.loads(ai_result_json)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to decode JSON from AI for {source_url}. Response was: {ai_result_json[:200]}...")
+            ai_result = json.loads(cleaned_json)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to decode JSON from AI for {source_url}. Error: {e}. Cleaned response was: {cleaned_json}")
             return
 
         # Step 4: Generate Schema.org

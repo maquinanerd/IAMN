@@ -86,24 +86,33 @@ class AIProcessor:
                         response_mime_type="application/json"
                     )
                 )
-                response = client.generate_content(request=request, timeout=60)
+                response = client.generate_content(request=request, timeout=90) # Increased timeout for longer articles
 
-                if response.candidates and response.candidates[0].content.parts:
-                    response_text = response.candidates[0].content.parts[0].text
-                    logger.info(f"Successfully received response from {ai_name}.")
-                    self.last_used_times[ai_type] = datetime.now()
-                    return response_text
-                
-                last_error = f"Empty response from {ai_name}"
-                logger.warning(f"{last_error}. The model may not have generated content. Trying next model if available.")
-                continue
+                if response.candidates:
+                    candidate = response.candidates[0]
+                    finish_reason = candidate.finish_reason.name
+                    safety_ratings = [(rating.category.name, rating.probability.name) for rating in candidate.safety_ratings]
+                    logger.info(f"AI response details from {ai_name}: Finish reason='{finish_reason}', Safety ratings={safety_ratings}")
+
+                    # Only accept the response if the model stopped naturally.
+                    # This prevents processing truncated JSON from MAX_TOKENS or SAFETY issues.
+                    if finish_reason != "STOP":
+                        last_error = f"AI generation from {ai_name} finished with non-ideal reason: {finish_reason}. This might result in a truncated or empty response."
+                        logger.warning(f"{last_error}. Trying next model if available.")
+                        continue  # Force a retry with the next key
+
+                    if candidate.content and candidate.content.parts:
+                        response_text = candidate.content.parts[0].text
+                        logger.info(f"Successfully received complete response from {ai_name}.")
+                        self.last_used_times[ai_type] = datetime.now()
+                        return response_text
 
             except Exception as e:
                 error_str = str(e)
                 last_error = f"API call to {ai_name} failed: {error_str}"
 
                 # Check for rate limit error and respect retry_delay if present
-                if "429" in error_str and "exceeded your current quota" in error_str:
+                if "429" in error_str and ("exceeded" in error_str or "exhausted" in error_str):
                     match = re.search(r"retry_delay {\s*seconds: (\d+)\s*}", error_str)
                     if match:
                         delay = int(match.group(1))
@@ -115,6 +124,9 @@ class AIProcessor:
                 
                 logger.warning(f"{last_error}. Trying next model if available.")
                 continue
+            
+            last_error = f"Empty or invalid response from {ai_name}"
+            logger.warning(f"{last_error}. The model may not have generated content. Trying next model if available.")
 
         logger.error(f"All AI clients for category '{ai_type}' failed. Last error: {last_error}")
         return None
