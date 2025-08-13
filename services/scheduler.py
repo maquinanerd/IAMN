@@ -240,7 +240,7 @@ class ContentAutomationScheduler:
                 source_url=source_url,
                 original_title=metadata.get('title', 'N/A'),
                 titulo_final=final_dto.title,
-                resumo=final_dto.summary,
+                summary=final_dto.summary,
                 conteudo_final=final_dto.content_html,
                 slug=final_dto.slug,
                 tags_json=json.dumps(final_dto.tags, ensure_ascii=False),
