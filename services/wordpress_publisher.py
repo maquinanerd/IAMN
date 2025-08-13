@@ -129,12 +129,12 @@ class WordPressPublisher:
                 'slug': article.slug,
                 'categories': self._get_categories_for_article(article),
                 'meta': {
-                    'description': article.resumo
+                    'description': article.meta_description
                 }
             }
 
             # Add tags if available
-            tags = self._prepare_tags(article.tags_json, article.obra_principal)
+            tags = self._prepare_tags(article.tags, article.obra_principal)
             if tags:
                 post_data['tags'] = self._create_or_get_tags(tags)
 

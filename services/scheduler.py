@@ -56,7 +56,6 @@ class ContentAutomationScheduler:
         self.content_extractor = ContentExtractor()
         self.schema_generator = SchemaGenerator()
         self.wordpress_publisher = WordPressPublisher()
-        self.grouped_feeds = self._group_feeds_by_category()
         self.is_running = False
 
     def start(self):
@@ -114,54 +113,49 @@ class ContentAutomationScheduler:
             self.is_running = False
             logger.info("Content automation scheduler stopped")
 
-    def _group_feeds_by_category(self):
-        """Groups feed keys from PIPELINE_ORDER by their category."""
-        grouped = {}
-        for feed_key in PIPELINE_ORDER:
-            if feed_key in RSS_FEEDS:
-                feed_config = RSS_FEEDS[feed_key]
-                category = feed_config.get('category')
-                if not category:
-                    logger.warning(f"Feed '{feed_key}' has no category defined. Skipping.")
-                    continue
-                if category not in grouped:
-                    grouped[category] = []
-                grouped[category].append(feed_key)
-        return grouped
-
     def automation_cycle(self, limit: int = None):
         """
         Main automation cycle. Fetches, processes, and prepares articles for publishing.
-        An optional limit can be provided to override the default number of articles per run.
+        Processes feeds sequentially based on the order defined in PIPELINE_ORDER.
         """
         with self.app.app_context():
             try:
                 logger.info("=== Starting automation cycle ===")
                 
-                # Processa os feeds agrupados por categoria para melhor gerenciamento das chaves de API
-                for category, feed_keys in self.grouped_feeds.items():
-                    logger.info(f"=== Processing category: {category} ===")
-                    for feed_key in feed_keys:
-                        feed_config = RSS_FEEDS[feed_key]
-                        logger.info(f"--- Starting processing for feed: {feed_key} ---")
+                # Processa os feeds na ordem definida em PIPELINE_ORDER
+                for feed_key in PIPELINE_ORDER:
+                    if feed_key not in RSS_FEEDS:
+                        logger.warning(f"Feed key '{feed_key}' from PIPELINE_ORDER not found in RSS_FEEDS. Skipping.")
+                        continue
 
-                        # Step 1: Fetch new articles for the current feed
-                        articles_to_process = self.rss_monitor.fetch_new_articles(
-                            feed_key=feed_key,
-                            urls=feed_config['urls'],
-                            limit=SCHEDULE_CONFIG.get('max_articles_per_feed', 3)
-                        )
-                        logger.info(f"Found {len(articles_to_process)} new articles from {feed_key}.")
+                    feed_config = RSS_FEEDS[feed_key]
+                    category = feed_config.get('category')
+                    if not category:
+                        logger.warning(f"Feed '{feed_key}' has no category defined. Skipping.")
+                        continue
+                    
+                    logger.info(f"--- Starting processing for feed: {feed_key} (Category: {category}) ---")
 
-                        for article_data in articles_to_process:
-                            self.process_single_article(article_data, category, feed_key)
-                            # Adiciona uma pausa para evitar atingir os limites de taxa da API por minuto.
-                            # O valor é configurável em config.py.
-                            # o que deve manter o uso dentro do limite da camada gratuita.
-                            delay = SCHEDULE_CONFIG.get('api_call_delay', 5)
-                            logger.debug(f"Aguardando {delay} segundos antes do próximo artigo...")
-                            time.sleep(delay)
-                        logger.info(f"--- Finished processing for feed: {feed_key} ---")
+                    # Step 1: Fetch new articles for the current feed
+                    articles_to_process = self.rss_monitor.fetch_new_articles(
+                        feed_key=feed_key,
+                        urls=feed_config['urls'],
+                        limit=SCHEDULE_CONFIG.get('max_articles_per_feed', 3)
+                    )
+                    logger.info(f"Found {len(articles_to_process)} new articles from {feed_key}.")
+
+                    if not articles_to_process:
+                        logger.info(f"--- No new articles for feed: {feed_key}. Moving to next. ---")
+                        continue
+
+                    for article_data in articles_to_process:
+                        self.process_single_article(article_data, category, feed_key)
+                        # Adiciona uma pausa para evitar atingir os limites de taxa da API por minuto.
+                        delay = SCHEDULE_CONFIG.get('api_call_delay', 5)
+                        logger.debug(f"Aguardando {delay} segundos antes do próximo artigo...")
+                        time.sleep(delay)
+                    
+                    logger.info(f"--- Finished processing for feed: {feed_key} ---")
 
                 logger.info("=== Automation cycle completed. ===")
 
