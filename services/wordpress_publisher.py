@@ -77,6 +77,11 @@ class WordPressPublisher:
 
                 if response.status_code in [200, 201]:
                     post_data_response = response.json()
+                    # Handle cases where the API incorrectly wraps the response in a list
+                    if isinstance(post_data_response, list) and post_data_response:
+                        logger.debug("WordPress API returned a list for a single post creation, taking the first element.")
+                        post_data_response = post_data_response[0]
+
                     article.wordpress_id = post_data_response['id']
                     article.wordpress_url = post_data_response['link']
                     article.status = 'published'
@@ -151,6 +156,11 @@ class WordPressPublisher:
 
             if response.status_code in [200, 201]:
                 post_data_response = response.json()
+                # Handle cases where the API incorrectly wraps the response in a list
+                if isinstance(post_data_response, list) and post_data_response:
+                    logger.debug("WordPress API returned a list for a single post creation, taking the first element.")
+                    post_data_response = post_data_response[0]
+
                 article.wordpress_id = post_data_response['id']
                 article.wordpress_url = post_data_response['link']
                 article.status = 'published'
@@ -214,14 +224,19 @@ class WordPressPublisher:
 
             if upload_response.status_code in [200, 201]:
                 media_data = upload_response.json()
+                # Handle cases where the API incorrectly wraps the response in a list
+                if isinstance(media_data, list) and media_data:
+                    logger.debug("WordPress API returned a list for a single media upload, taking the first element.")
+                    media_data = media_data[0]
+
                 logger.info(f"Successfully uploaded featured image with ID: {media_data['id']}")
                 return media_data['id']
             else:
-                logger.error(f"Failed to upload featured image: {upload_response.status_code}")
+                logger.error(f"Failed to upload featured image: {upload_response.status_code} - {upload_response.text}")
                 return None
 
         except Exception as e:
-            logger.error(f"Error uploading featured image: {str(e)}")
+            logger.error(f"Error uploading featured image: {str(e)}", exc_info=True)
             return None
 
     def _get_categories_for_article(self, article):
