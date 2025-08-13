@@ -86,7 +86,7 @@ class AIProcessor:
                         response_mime_type="application/json"
                     )
                 )
-                response = client.generate_content(request=request)
+                response = client.generate_content(request=request, timeout=60)
 
                 if response.candidates and response.candidates[0].content.parts:
                     response_text = response.candidates[0].content.parts[0].text

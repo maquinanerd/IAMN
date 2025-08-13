@@ -1,5 +1,6 @@
 import logging
 import feedparser
+import requests
 from datetime import datetime, timedelta
 from sqlalchemy import or_
 
@@ -38,7 +39,12 @@ class RSSMonitor:
                 break
 
             try:
-                feed = feedparser.parse(url, agent=USER_AGENT)
+                # Fetch the feed content with requests to handle timeouts gracefully
+                response = requests.get(url, headers={'User-Agent': USER_AGENT}, timeout=15)
+                response.raise_for_status()
+                
+                # Parse the fetched content
+                feed = feedparser.parse(response.content)
 
                 # Improved error handling for malformed feeds
                 if feed.bozo:
@@ -51,7 +57,7 @@ class RSSMonitor:
                     else: # Log other types of "bozo" errors
                         logger.warning(f"[{feed_key}] Problema de parsing no feed {url}. Detalhe: {feed.bozo_exception}")
                     continue # Skip this faulty URL and move to the next one
-
+                
                 for entry in feed.entries:
                     if len(new_articles) >= limit:
                         break
@@ -62,6 +68,8 @@ class RSSMonitor:
                         new_articles.append(dto)
                         existing_urls.add(entry.link) # Avoid processing duplicates in the same run
 
+            except requests.RequestException as e:
+                logger.error(f"[{feed_key}] Failed to fetch feed content from {url}. Error: {e}")
             except Exception as e:
                 logger.error(f"[{feed_key}] Falha inesperada ao processar o feed {url}. Erro: {e}", exc_info=True)
                 continue

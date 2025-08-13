@@ -278,7 +278,8 @@ class WordPressPublisher:
                 response = requests.get(
                     f"{self.base_url}tags",
                     params={'search': tag_name},
-                    auth=self.auth
+                    auth=self.auth,
+                    timeout=15
                 )
                 
                 if response.status_code == 200 and response.json():
@@ -288,7 +289,8 @@ class WordPressPublisher:
                     new_tag_response = requests.post(
                         f"{self.base_url}tags",
                         json={'name': tag_name},
-                        auth=self.auth
+                        auth=self.auth,
+                        timeout=15
                     )
                     if new_tag_response.status_code == 201:
                         tag_ids.append(new_tag_response.json()['id'])
