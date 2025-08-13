@@ -12,6 +12,8 @@ from services.ai_processor import AIProcessor
 from services.wordpress_publisher import WordPressPublisher
 from services.content_extractor import ContentExtractor
 from services.schema_generator import SchemaGenerator
+from models import Article
+from extensions import db
 from dto import PublishedArticleDTO, FeaturedImageDTO, ExtractedArticleDTO
 from config import SCHEDULE_CONFIG, PIPELINE_CONFIG, UNIVERSAL_PROMPT, WORDPRESS_CONFIG, PIPELINE_ORDER, RSS_FEEDS
 
@@ -152,7 +154,7 @@ class ContentAutomationScheduler:
                         logger.info(f"Found {len(articles_to_process)} new articles from {feed_key}.")
 
                         for article_data in articles_to_process:
-                            self.process_single_article(article_data, category)
+                            self.process_single_article(article_data, category, feed_key)
                             # Adiciona uma pausa para evitar atingir os limites de taxa da API por minuto.
                             # O valor é configurável em config.py.
                             # o que deve manter o uso dentro do limite da camada gratuita.
@@ -166,7 +168,7 @@ class ContentAutomationScheduler:
             except Exception as e:
                 logger.error(f"Error in automation cycle: {str(e)}", exc_info=True)
 
-    def process_single_article(self, article_dto: ExtractedArticleDTO, category: str):
+    def process_single_article(self, article_dto: ExtractedArticleDTO, category: str, feed_key: str):
         """Processes a single article from extraction to publishing readiness."""
         source_url = article_dto.source_url
         logger.info(f"--- Processing URL: {source_url} ---")
@@ -230,9 +232,39 @@ class ContentAutomationScheduler:
             attribution=PIPELINE_CONFIG['attribution_policy'].format(domain=urlparse(source_url).netloc)
         )
 
-        # Step 6: Publish to WordPress (ou marcar como pronto para publicação)
-        # self.wordpress_publisher.publish(final_dto)
-        logger.info(f"Article '{final_dto.title}' is ready for publishing.")
+        # Step 6: Persist the article to the database to prevent reprocessing.
+        # This is crucial for the rss_monitor to know which articles have been seen.
+        try:
+            # NOTE: Field names are inferred from context. Adjust if your Article model is different.
+            new_article = Article(
+                source_url=source_url,
+                original_title=metadata.get('title', 'N/A'),
+                titulo_final=final_dto.title,
+                resumo=final_dto.summary,
+                conteudo_final=final_dto.content_html,
+                slug=final_dto.slug,
+                tags_json=json.dumps(final_dto.tags, ensure_ascii=False),
+                categoria=ai_result.get('categoria'),
+                obra_principal=ai_result.get('obra_principal'),
+                focus_keyword=ai_result.get('focus_keyword'),
+                featured_image_url=metadata.get('featured_image'),
+                schema_json_ld=json.dumps(final_dto.schema_json_ld, ensure_ascii=False),
+                status='processed',
+                feed_type=feed_key,
+                attribution=final_dto.attribution
+            )
+            db.session.add(new_article)
+            db.session.commit()
+            logger.info(f"Article '{final_dto.title}' saved to database with status 'processed'.")
+
+            # Step 7: Publish the newly created article to WordPress
+            self.wordpress_publisher.publish_article(new_article.id)
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to save article {source_url} to database. It will be retried later. Error: {e}", exc_info=True)
+            return  # Exit if we can't save, to avoid trying to publish an unsaved article
+
 
     def cleanup_cycle(self):
         """Database cleanup cycle"""

@@ -18,7 +18,10 @@ class WordPressPublisher:
         self.auth = (WORDPRESS_CONFIG['user'], WORDPRESS_CONFIG['password'])
 
     def publish_processed_articles(self, max_articles=3):
-        """Publish processed articles to WordPress"""
+        """
+        Publish processed articles to WordPress.
+        NOTE: This method is part of a legacy batch-processing workflow and is not used by the current scheduler.
+        """
         processed_articles = Article.query.filter_by(status='processed').limit(max_articles).all()
 
         published_count = 0
@@ -88,6 +91,72 @@ class WordPressPublisher:
                 db.session.commit()
 
         return published_count
+
+    def publish_article(self, article_id: int):
+        """Publish a single article to WordPress given its database ID."""
+        article = Article.query.get(article_id)
+        if not article:
+            logger.error(f"Cannot publish article: No article found with ID {article_id}")
+            return False
+
+        try:
+            article.status = 'publishing'
+            db.session.commit()
+
+            # Upload featured image if available
+            featured_image_id = None
+            if article.featured_image_url:
+                featured_image_id = self._upload_featured_image(
+                    article.featured_image_url,
+                    article.titulo_final
+                )
+
+            # Prepare post data
+            post_data = {
+                'title': article.titulo_final,
+                'content': article.conteudo_final,
+                'status': 'publish',
+                'slug': article.slug,
+                'categories': self._get_categories_for_article(article),
+                'meta': {
+                    'description': article.resumo
+                }
+            }
+
+            # Add tags if available
+            tags = self._prepare_tags(article.tags_json, article.obra_principal)
+            if tags:
+                post_data['tags'] = self._create_or_get_tags(tags)
+
+            if featured_image_id:
+                post_data['featured_media'] = featured_image_id
+
+            # Publish post
+            response = requests.post(
+                f"{self.base_url}posts",
+                json=post_data,
+                auth=self.auth,
+                timeout=30
+            )
+
+            if response.status_code == 201:
+                post_data_response = response.json()
+                article.wordpress_id = post_data_response['id']
+                article.wordpress_url = post_data_response['link']
+                article.status = 'published'
+                article.published_at = datetime.utcnow()
+                self._log_publishing(article.id, 'WORDPRESS_PUBLISH', f'Successfully published to WordPress: {article.wordpress_url}', True)
+                logger.info(f"Successfully published article: {article.titulo_final}")
+            else:
+                raise Exception(f"WordPress API error: {response.status_code} - {response.text}")
+
+        except Exception as e:
+            logger.error(f"Error publishing article {article.id}: {str(e)}", exc_info=True)
+            article.status = 'failed'
+            article.error_message = str(e)
+            self._log_publishing(article.id, 'WORDPRESS_PUBLISH', f'Publishing failed: {str(e)}', False)
+        finally:
+            db.session.commit()
 
     def _upload_featured_image(self, image_url, title):
         """Upload featured image to WordPress media library"""
