@@ -8,6 +8,11 @@ from extensions import db
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
+# Reduce noise from the trafilatura library during normal operation
+logging.getLogger('trafilatura').setLevel(logging.WARNING)
+# Reduce noise from other verbose libraries
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('htmldate').setLevel(logging.WARNING)
 
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
