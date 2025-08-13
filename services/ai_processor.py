@@ -77,54 +77,55 @@ class AIProcessor:
             ai_name = f"{ai_type}_model_#{client_index + 1}"
             
             logger.info(f"Attempting to send prompt with {ai_name} using key {partial_key} (Attempt {i+1}/{num_clients} for this article)...")
-
-            try:
-                request = GenerateContentRequest(
-                    model="models/gemini-1.5-flash",
-                    contents=[Content(parts=[Part(text=prompt)])],
-                    generation_config=GenerationConfig(
-                        response_mime_type="application/json"
-                    )
-                )
-                response = client.generate_content(request=request, timeout=90) # Increased timeout for longer articles
-
-                if response.candidates:
-                    candidate = response.candidates[0]
-                    finish_reason = candidate.finish_reason.name
-                    safety_ratings = [(rating.category.name, rating.probability.name) for rating in candidate.safety_ratings]
-                    logger.info(f"AI response details from {ai_name}: Finish reason='{finish_reason}', Safety ratings={safety_ratings}")
-
-                    # Only accept the response if the model stopped naturally.
-                    # This prevents processing truncated JSON from MAX_TOKENS or SAFETY issues.
-                    if finish_reason != "STOP":
-                        last_error = f"AI generation from {ai_name} finished with non-ideal reason: {finish_reason}. This might result in a truncated or empty response."
-                        logger.warning(f"{last_error}. Trying next model if available.")
-                        continue  # Force a retry with the next key
-
-                    if candidate.content and candidate.content.parts:
-                        response_text = candidate.content.parts[0].text
-                        logger.info(f"Successfully received complete response from {ai_name}.")
-                        self.last_used_times[ai_type] = datetime.now()
-                        return response_text
-
-            except Exception as e:
-                error_str = str(e)
-                last_error = f"API call to {ai_name} failed: {error_str}"
-
-                # Check for rate limit error and respect retry_delay if present
-                if "429" in error_str and ("exceeded" in error_str or "exhausted" in error_str):
-                    match = re.search(r"retry_delay {\s*seconds: (\d+)\s*}", error_str)
-                    if match:
-                        delay = int(match.group(1))
-                        # Add a small buffer and cap the delay to avoid excessive waiting
-                        sleep_time = min(delay + 2, 60) 
-                        logger.warning(f"Rate limit hit for key {partial_key}. Respecting retry_delay and sleeping for {sleep_time} seconds before next attempt.")
-                        time.sleep(sleep_time)
-                        continue  # Continue to the next key after sleeping
-                
-                logger.warning(f"{last_error}. Trying next model if available.")
-                continue
             
+            # Retry logic specifically for the current key
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    request = GenerateContentRequest(
+                        model="models/gemini-1.5-flash",
+                        contents=[Content(parts=[Part(text=prompt)])],
+                        generation_config=GenerationConfig(
+                            response_mime_type="application/json"
+                        )
+                    )
+                    response = client.generate_content(request=request, timeout=90) # Increased timeout for longer articles
+
+                    if response.candidates:
+                        candidate = response.candidates[0]
+                        finish_reason = candidate.finish_reason.name
+                        safety_ratings = [(rating.category.name, rating.probability.name) for rating in candidate.safety_ratings]
+                        logger.info(f"AI response details from {ai_name}: Finish reason='{finish_reason}', Safety ratings={safety_ratings}")
+
+                        # Only accept the response if the model stopped naturally.
+                        if finish_reason != "STOP":
+                            last_error = f"AI generation from {ai_name} finished with non-ideal reason: {finish_reason}."
+                            logger.warning(f"{last_error} This might result in a truncated or empty response. Trying next model.")
+                            break # Break from retry loop and try next key
+
+                        if candidate.content and candidate.content.parts:
+                            response_text = candidate.content.parts[0].text
+                            logger.info(f"Successfully received complete response from {ai_name}.")
+                            self.last_used_times[ai_type] = datetime.now()
+                            return response_text
+
+                except Exception as e:
+                    error_str = str(e)
+                    last_error = f"API call to {ai_name} failed: {error_str}"
+
+                    # Check for rate limit error and respect retry_delay if present
+                    if "429" in error_str and ("exceeded" in error_str or "exhausted" in error_str):
+                        match = re.search(r"retry_delay {\s*seconds: (\d+)\s*}", error_str)
+                        if match:
+                            delay = int(match.group(1))
+                            sleep_time = min(delay + 2, 60) 
+                            logger.warning(f"Rate limit hit for key {partial_key}. Retrying with same key in {sleep_time} seconds (Attempt {attempt + 1}/{max_retries}).")
+                            time.sleep(sleep_time)
+                            continue # Retry with the same key
+                    
+                    logger.warning(f"{last_error}. Trying next model if available.")
+                    break # Break from retry loop for non-rate-limit errors
+
             last_error = f"Empty or invalid response from {ai_name}"
             logger.warning(f"{last_error}. The model may not have generated content. Trying next model if available.")
 

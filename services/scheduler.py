@@ -5,6 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import time
 import re
 import unicodedata
+from datetime import datetime, timedelta
 from pytz import timezone
 from urllib.parse import urlparse
 from services.rss_monitor import RSSMonitor
@@ -66,6 +67,8 @@ class ContentAutomationScheduler:
             self.scheduler.add_job(
                 func=self.automation_cycle,
                 trigger='date',
+                # Adiciona um pequeno delay para que a mensagem de "Aplicação iniciada" apareça primeiro.
+                run_date=datetime.now(self.scheduler.timezone) + timedelta(seconds=5),
                 id='content_automation_initial_run',
                 name='Content Automation Initial Run'
             )
@@ -186,10 +189,12 @@ class ContentAutomationScheduler:
         # Acessa os metadados corretamente dentro do dicionário aninhado
         metadata = extracted_data.get('metadata', {})
 
+        featured_image_url = metadata.get('featured_image') or ""
         prompt = UNIVERSAL_PROMPT.format(
             title=metadata.get('title') or "Sem título",
             excerpt=metadata.get('summary') or "Sem resumo",
             domain=domain,
+            featured_image_url=featured_image_url,
             content=extracted_data.get('content_html')
         )
         ai_result_json = self.ai_processor.send_prompt(prompt, category=category)

@@ -119,24 +119,13 @@ logger = logging.getLogger(__name__)
 
 def _load_prompt_from_file(file_name: str) -> str:
     """Loads a prompt from the 'prompts' directory, with a fallback to the root directory."""
-    base_dir = os.path.dirname(__file__)
-    
-    # 1. Try the 'prompts' subdirectory
-    prompt_path_in_subdir = os.path.join(base_dir, 'prompts', file_name)
-    # 2. Fallback to the project root directory
-    prompt_path_in_root = os.path.join(base_dir, file_name)
-
+    prompt_path = os.path.join(os.path.dirname(__file__), file_name)
     try:
-        with open(prompt_path_in_subdir, 'r', encoding='utf-8') as f:
+        with open(prompt_path, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
-        try:
-            with open(prompt_path_in_root, 'r', encoding='utf-8') as f:
-                logger.info(f"Prompt file '{file_name}' not found in 'prompts/' directory, using file from project root.")
-                return f.read()
-        except FileNotFoundError:
-            logger.critical(f"CRITICAL ERROR: Prompt file '{file_name}' not found in 'prompts/' or project root directory.")
-            return "Error: Prompt file not found."
+        logger.critical(f"CRITICAL ERROR: Prompt file '{file_name}' not found in project root directory.")
+        return "Error: Prompt file not found."
 
 # Universal Prompt for AI Processing, loaded from an external file
 UNIVERSAL_PROMPT = _load_prompt_from_file('universal_prompt.txt')
