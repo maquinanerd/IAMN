@@ -22,7 +22,7 @@ URL da Imagem Destaque: {featured_image_url}
 Conteúdo: {content}
 
 Responda APENAS em JSON:
-{
+{{
   "titulo_final": "...",
   "conteudo_final": "...",
   "meta_description": "...",
@@ -30,4 +30,4 @@ Responda APENAS em JSON:
   "categoria": "...",
   "obra_principal": "...",
   "tags": ["...", "...", "..."]
-}
+}}
