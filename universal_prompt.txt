@@ -9,7 +9,7 @@ REGRAS:
 6. Categorize o artigo como 'Filmes', 'Séries' ou 'Games'.
 7. Identifique o nome do filme, série ou jogo principal abordado no artigo.
 8. Se houver embeds de vídeos do YouTube ou publicações do Twitter no conteúdo original, incorpore-os diretamente no local apropriado do `conteudo_final` com o código embed real.
-9. No início do `conteudo_final`, insira a imagem de destaque usando uma tag <img src="{featured_image_url}" alt="{titulo_final}">.
+9. No início do `conteudo_final`, insira a imagem de destaque usando uma tag <img src="{featured_image_url}" alt="{title}">.
 10. Use <strong></strong> em vez de ** para destacar texto.
 11. Mantenha a coerência e a naturalidade do texto, como em uma publicação profissional de jornalismo de entretenimento.
 12. IMPORTANTE: O JSON de resposta deve ser perfeitamente válido. Preste muita atenção para escapar corretamente quaisquer aspas duplas (") dentro dos valores de string do JSON com uma barra invertida (\\"), como em "exemplo de texto com \\"aspas\\" internas".
