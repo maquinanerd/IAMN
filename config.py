@@ -3,33 +3,53 @@ import logging
 
 # Definição da ordem de execução do pipeline
 PIPELINE_ORDER = [
-    'screenrant_filmes_tv',
-    'movieweb',
-    'collider_filmes_tv',
-    'cbr_cultura_pop',
-    'games'
+    'screenrant_movies',
+    'screenrant_tv',
+    'movieweb_movies',
+    'collider_movies',
+    'collider_tv',
+    'cbr_movies',
+    'cbr_tv',
+    'gamerant_games',
+    'thegamer_games',
 ]
 
 # Configuração dos Feeds RSS, organizados por fontes
 RSS_FEEDS = {
-    'screenrant_filmes_tv': {
-        'urls': ['https://screenrant.com/feed/movie-news/', 'https://screenrant.com/feed/tv-news/'],
-        'category': 'movies' # Categoria principal para a IA
+    'screenrant_movies': {
+        'urls': ['https://screenrant.com/feed/movie-news/'],
+        'category': 'movies'
     },
-    'movieweb': {
+    'screenrant_tv': {
+        'urls': ['https://screenrant.com/feed/tv-news/'],
+        'category': 'series'
+    },
+    'movieweb_movies': {
         'urls': ['https://movieweb.com/feed/'],
         'category': 'movies'
     },
-    'collider_filmes_tv': {
-        'urls': ['https://collider.com/feed/category/movie-news/', 'https://collider.com/feed/category/tv-news/'],
+    'collider_movies': {
+        'urls': ['https://collider.com/feed/category/movie-news/'],
         'category': 'movies'
     },
-    'cbr_cultura_pop': {
-        'urls': ['https://www.cbr.com/feed/category/movies/news-movies/', 'https://www.cbr.com/feed/category/tv/news-tv/'],
+    'collider_tv': {
+        'urls': ['https://collider.com/feed/category/tv-news/'],
+        'category': 'series'
+    },
+    'cbr_movies': {
+        'urls': ['https://www.cbr.com/feed/category/movies/news-movies/'],
         'category': 'movies'
     },
-    'games': {
-        'urls': ['https://gamerant.com/feed/gaming/', 'https://www.thegamer.com/feed/category/game-news/'],
+    'cbr_tv': {
+        'urls': ['https://www.cbr.com/feed/category/tv/news-tv/'],
+        'category': 'series'
+    },
+    'gamerant_games': {
+        'urls': ['https://gamerant.com/feed/gaming/'],
+        'category': 'games'
+    },
+    'thegamer_games': {
+        'urls': ['https://www.thegamer.com/feed/category/game-news/'],
         'category': 'games'
     }
 }
@@ -43,15 +63,24 @@ USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 # Alterado para os.getenv() para evitar que a aplicação quebre se uma variável de ambiente não estiver definida.
 AI_CONFIG = {
     'movies': [
-        os.getenv('GEMINI_MOVIES_1'),
-        os.getenv('GEMINI_MOVIES_2'),
+        os.getenv('GEMINI_MOVIES_1'), # Screenrant Movies
+        os.getenv('GEMINI_MOVIES_2'), # Movieweb Movies
+        os.getenv('GEMINI_MOVIES_3'), # Collider Movies
+        os.getenv('GEMINI_MOVIES_4'), # CBR Movies
+        os.getenv('GEMINI_BACKUP_1'),
+        os.getenv('GEMINI_BACKUP_2'),
     ],
     'series': [
-        os.getenv('GEMINI_SERIES_1'),
-        os.getenv('GEMINI_SERIES_2'),
+        os.getenv('GEMINI_SERIES_1'), # Screenrant TV
+        os.getenv('GEMINI_SERIES_2'), # Collider TV
+        os.getenv('GEMINI_SERIES_3'), # CBR TV
+        os.getenv('GEMINI_BACKUP_3'),
+        os.getenv('GEMINI_BACKUP_4'),
     ],
     'games': [
-        os.getenv('GEMINI_GAMES_1'),
+        os.getenv('GEMINI_GAMES_1'), # GameRant
+        os.getenv('GEMINI_GAMES_2'), # TheGamer
+        os.getenv('GEMINI_BACKUP_5'),
     ],
 }
 

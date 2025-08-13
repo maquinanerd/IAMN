@@ -10,12 +10,22 @@ logger = logging.getLogger(__name__)
 
 class WordPressPublisher:
     def __init__(self):
-        base_url = WORDPRESS_CONFIG['url']
-        # Ensure URL has proper WordPress API endpoint
-        if not base_url.rstrip('/').endswith('wp-json/wp/v2'):
-            base_url = base_url.rstrip('/') + '/wp-json/wp/v2'
-        self.base_url = base_url.rstrip('/') + '/'
+        base_url = WORDPRESS_CONFIG.get('url')
+        if not base_url:
+            raise ValueError(
+                "A URL do WordPress não está configurada. "
+                "Verifique se a variável de ambiente 'WORDPRESS_URL' está definida no seu arquivo .env."
+            )
+
+        # Garante que a URL termine com o endpoint correto da API
+        if not base_url.rstrip('/').endswith('/wp-json/wp/v2'):
+            self.base_url = base_url.rstrip('/') + '/wp-json/wp/v2/'
+        else:
+            self.base_url = base_url.rstrip('/') + '/'
+
         self.auth = (WORDPRESS_CONFIG['user'], WORDPRESS_CONFIG['password'])
+        if not self.auth[0] or not self.auth[1]:
+            logger.warning("Usuário ou senha do WordPress não configurados. A publicação provavelmente falhará.")
 
     def publish_processed_articles(self, max_articles=3):
         """
