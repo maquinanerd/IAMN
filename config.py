@@ -103,7 +103,7 @@ WORDPRESS_CATEGORIES = {
 SCHEDULE_CONFIG = {
     'check_interval': 15,  # minutes
     'max_articles_per_feed': 3,  # Limite de artigos por fonte em cada ciclo
-    'api_call_delay': 5, # segundos para aguardar entre o processamento de artigos
+    'api_call_delay': 20, # Aumentado para 20 segundos para respeitar os limites da API gratuita (15 req/min) e evitar pausas longas.
     'cleanup_after_hours': 12
 }
 

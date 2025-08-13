@@ -122,6 +122,10 @@ class ContentAutomationScheduler:
             try:
                 logger.info("=== Starting automation cycle ===")
                 
+                # Fetch all existing URLs ONCE at the beginning of the cycle for efficiency.
+                all_known_urls = {article.source_url for article in Article.query.with_entities(Article.source_url).all()}
+                logger.info(f"Initialized with {len(all_known_urls)} known URLs from the database.")
+
                 # Processa os feeds na ordem definida em PIPELINE_ORDER
                 for feed_key in PIPELINE_ORDER:
                     if feed_key not in RSS_FEEDS:
@@ -140,7 +144,8 @@ class ContentAutomationScheduler:
                     articles_to_process = self.rss_monitor.fetch_new_articles(
                         feed_key=feed_key,
                         urls=feed_config['urls'],
-                        limit=SCHEDULE_CONFIG.get('max_articles_per_feed', 3)
+                        limit=SCHEDULE_CONFIG.get('max_articles_per_feed', 3),
+                        existing_urls=all_known_urls
                     )
                     logger.info(f"Found {len(articles_to_process)} new articles from {feed_key}.")
 
@@ -151,7 +156,7 @@ class ContentAutomationScheduler:
                     for article_data in articles_to_process:
                         self.process_single_article(article_data, category, feed_key)
                         # Adiciona uma pausa para evitar atingir os limites de taxa da API por minuto.
-                        delay = SCHEDULE_CONFIG.get('api_call_delay', 5)
+                        delay = SCHEDULE_CONFIG.get('api_call_delay', 20)
                         logger.debug(f"Aguardando {delay} segundos antes do próximo artigo...")
                         time.sleep(delay)
                     

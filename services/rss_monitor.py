@@ -17,7 +17,7 @@ class RSSMonitor:
     and handles feed parsing errors gracefully.
     """
 
-    def fetch_new_articles(self, feed_key: str, urls: list, limit: int) -> list[ExtractedArticleDTO]:
+    def fetch_new_articles(self, feed_key: str, urls: list, limit: int, existing_urls: set) -> list[ExtractedArticleDTO]:
         """
         Fetches new articles from a list of URLs for a given feed, avoiding duplicates.
 
@@ -25,12 +25,12 @@ class RSSMonitor:
             feed_key: The identifier for the feed source (e.g., 'screenrant_filmes_tv').
             urls: A list of RSS feed URLs to check.
             limit: The maximum number of new articles to fetch for this feed key.
+            existing_urls: A set of already known URLs to avoid reprocessing. The method will update this set.
 
         Returns:
             A list of ExtractedArticleDTO objects for new articles.
         """
         logger.info(f"[{feed_key}] Verificando novos artigos em {len(urls)} URL(s).")
-        existing_urls = {article.source_url for article in Article.query.with_entities(Article.source_url).all()}
         new_articles = []
 
         for url in urls:
